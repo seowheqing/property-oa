@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: property-oa
+    runtime: node
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: FEISHU_APP_ID
+        sync: false
+      - key: FEISHU_APP_SECRET
+        sync: false
+      - key: FEISHU_APP_TOKEN
+        value: PdZ0bstWWasvZFsWa3gc5PHznMb
+      - key: FEISHU_TABLE_ID
+        value: tbloxkuixNZIp76r

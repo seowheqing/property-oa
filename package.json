@@ -1,0 +1,15 @@
+{
+  "name": "property-oa-server",
+  "version": "1.0.0",
+  "description": "物业工单系统后端 - 飞书多维表格对接",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "express": "4.21.2",
+    "cors": "2.8.5",
+    "node-fetch": "2.7.0"
+  }
+}
