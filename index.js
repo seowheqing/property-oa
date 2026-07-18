@@ -44,6 +44,7 @@ async function initDB() {
       priority TEXT DEFAULT 'normal',
       status TEXT DEFAULT 'wait',
       worker TEXT DEFAULT '',
+      message TEXT DEFAULT '',
       created TEXT NOT NULL,
       finished TEXT DEFAULT '',
       reject_reason TEXT DEFAULT '',
@@ -83,6 +84,7 @@ function rowToTicket(row) {
     priority: row.priority,
     status: row.status,
     worker: row.worker || null,
+    message: row.message || '',
     created: row.created,
     finished: row.finished || null,
     rejectReason: row.reject_reason || '',
@@ -117,9 +119,9 @@ app.post('/api/tickets', (req, res) => {
   const now = t.created || new Date().toISOString();
   try {
     db.run(
-      `INSERT INTO tickets (id, type, cat, desc, loc, priority, status, worker, created, estimated_hours)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, t.type || 'repair', t.cat || '其他', t.desc || '', t.loc || '', t.priority || 'normal', t.status || 'wait', t.worker || '', now, t.estimated_hours || 0]
+      `INSERT INTO tickets (id, type, cat, desc, loc, priority, status, worker, message, created, estimated_hours)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, t.type || 'repair', t.cat || '其他', t.desc || '', t.loc || '', t.priority || 'normal', t.status || 'wait', t.worker || '', t.message || '', now, t.estimated_hours || 0]
     );
     saveDB();
     const row = queryOne('SELECT * FROM tickets WHERE id = ?', [id]);
@@ -132,7 +134,7 @@ app.post('/api/tickets', (req, res) => {
 // PATCH /api/tickets/:id — 更新工单
 app.patch('/api/tickets/:id', (req, res) => {
   const updates = req.body;
-  const allowed = { status: 'status', worker: 'worker', priority: 'priority', finished: 'finished', reject_reason: 'reject_reason', rejectReason: 'reject_reason', estimated_hours: 'estimated_hours', cat: 'cat', loc: 'loc', desc: 'desc' };
+  const allowed = { status: 'status', worker: 'worker', priority: 'priority', finished: 'finished', reject_reason: 'reject_reason', rejectReason: 'reject_reason', estimated_hours: 'estimated_hours', cat: 'cat', loc: 'loc', desc: 'desc', message: 'message' };
   const sets = [];
   const values = [];
 
