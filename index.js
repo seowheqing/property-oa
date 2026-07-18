@@ -166,7 +166,78 @@ app.post('/api/tickets', async (req, res) => {
   }
 });
 
+// ============ 企业微信群通知 ============
+const WECHAT_WEBHOOK = process.env.WECHAT_WEBHOOK || '';
+
+async function sendGroupNotify(content) {
+  if (!WECHAT_WEBHOOK) return { success: false, error: '未配置 WECHAT_WEBHOOK 环境变量' };
+  try {
+    const resp = await fetch(WECHAT_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        msgtype: 'markdown',
+        markdown: { content }
+      })
+    });
+    const data = await resp.json();
+    return { success: data.errcode === 0, data };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// POST /api/notify — 工单状态变更通知群
+app.post('/api/notify', async (req, res) => {
+  try {
+    const { ticketId, event } = req.body; // event: completed | assigned | rejected
+    // 查找工单
+    const url = `/bitable/v1/apps/${APP_TOKEN}/tables/${TABLE_ID}/records?page_size=100`;
+    const data = await feishuGet(url);
+    const records = (data.data.items || []).map(recordToTicket);
+    const ticket = records.find(t => t.id === ticketId || t.record_id === ticketId);
+
+    if (!ticket) return res.status(404).json({ error: '工单不存在' });
+
+    let content = '';
+    if (event === 'completed' || !event) {
+      content = `✅ **工单已完成**\n` +
+        `> 工单号：${ticket.id}\n` +
+        `> 类型：${ticket.cat}\n` +
+        `> 描述：${ticket.desc}\n` +
+        `> 位置：${ticket.loc}\n` +
+        `> 处理人：${ticket.worker || '未指派'}\n` +
+        `> 状态：已完成`;
+    } else if (event === 'assigned') {
+      content = `🔧 **工单已派单**\n` +
+        `> 工单号：${ticket.id}\n` +
+        `> 类型：${ticket.cat}\n` +
+        `> 描述：${ticket.desc}\n` +
+        `> 位置：${ticket.loc}\n` +
+        `> 已指派给：${ticket.worker}`;
+    } else if (event === 'rejected') {
+      content = `⚠️ **工单已驳回**\n` +
+        `> 工单号：${ticket.id}\n` +
+        `> 类型：${ticket.cat}\n` +
+        `> 描述：${ticket.desc}\n` +
+        `> 驳回原因：${ticket.rejectReason || '未填写'}`;
+    } else {
+      content = `📋 **工单通知**\n` +
+        `> 工单号：${ticket.id}\n` +
+        `> 状态：${ticket.status}\n` +
+        `> 描述：${ticket.desc}`;
+    }
+
+    const result = await sendGroupNotify(content);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`物业工单后端已启动: http://localhost:${PORT}`);
   console.log(`飞书表格: https://juzihudong.feishu.cn/base/${APP_TOKEN}`);
+  if (WECHAT_WEBHOOK) console.log('企业微信群通知：已配置');
+  else console.log('企业微信群通知：未配置 WECHAT_WEBHOOK');
 });

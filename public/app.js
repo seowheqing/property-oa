@@ -465,7 +465,10 @@ function confirmDone(id) {
   t.finished = new Date().toISOString();
   const st = state.staff.find(s => s.name === t.worker);
   if (st) st.done += 1;
-  save(); apiPatch(t.record_id, {status:'done', finished:t.finished}); afterAction(id, '工单已完成');
+  save(); apiPatch(t.record_id, {status:'done', finished:t.finished});
+  // 自动通知群
+  fetch(API_BASE + '/api/notify', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticketId:t.id,event:'completed'})}).catch(function(){});
+  afterAction(id, '工单已完成');
 }
 
 function reject(id) {
