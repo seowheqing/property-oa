@@ -739,16 +739,6 @@ function activeStaff(role) { return state.staff.filter(s => s.role === role && s
 
 function enhanceState() {
   state.tickets.forEach(t => { t.priority = t.priority || inferPriority(t); t.rejectHistory = t.rejectHistory || []; t.steps = t.steps || []; t.photos = t.photos || []; t.aggregated = t.aggregated || []; });
-  if (!state.tickets.some(t => t.type === 'help')) {
-    var now = Date.now();
-    [
-      { id:'QT3001', cat:'生活帮助', loc:'2号楼-大堂', desc:'独居老人需要协助搬运饮用水', priority:'high', created:new Date(now-70*60000).toISOString() },
-      { id:'QT3002', cat:'咨询建议', loc:'物业服务中心', desc:'咨询新能源车充电位申请流程', priority:'low', created:new Date(now-5*3600000).toISOString() },
-      { id:'QT3003', cat:'邻里协调', loc:'5号楼-2单元', desc:'楼上夜间噪音，希望协助沟通', priority:'normal', created:new Date(now-26*3600000).toISOString() },
-      { id:'QT3004', cat:'其他', loc:'小区北门', desc:'捡到一串钥匙，请帮助寻找失主', priority:'normal', created:new Date(now-2*3600000).toISOString() }
-    ].forEach((x, i) => state.tickets.push(Object.assign({ type:'help', status:i===2?'doing':'wait', worker:i===2?'陈管家':null, source:'manual', photos:[], aggregated:[], rejectHistory:[], elements:{ event:x.desc, place:x.loc, time:'居民反馈' }, steps:[{ title:'居民发起', who:'前台手动录入', time:x.created }] }, x)));
-  }
-  save();
 }
 
 function setupEnhancedUI() {
