@@ -118,9 +118,14 @@ http://localhost:3001
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/tickets` | 获取全部工单（从飞书读取） |
-| POST | `/api/tickets` | 创建新工单（写入飞书） |
-| PATCH | `/api/tickets/:recordId` | 更新工单（写回飞书） |
+| GET | `/api/tickets` | 获取全部工单 |
+| POST | `/api/tickets` | 创建新工单 |
+| PATCH | `/api/tickets/:id` | 更新工单状态 |
+| DELETE | `/api/tickets/:id` | 删除工单 |
+| DELETE | `/api/tickets` | 清空全部工单 |
+| POST | `/api/notify` | 手动触发通知回调 |
+| POST | `/api/jzm/trigger-event` | 触发句子秒懂流程引擎事件 |
+| POST | `/api/jzm/token` | 获取/查看当前 accessToken（调试） |
 
 ### PATCH 请求体示例
 
@@ -142,6 +147,42 @@ http://localhost:3001
 {
   "status": "doing",
   "rejectReason": "现场照片不完整"
+}
+```
+
+### 句子秒懂流程引擎接口
+
+#### POST /api/jzm/trigger-event
+
+触发句子秒懂流程引擎事件，将工单创建时的 `message` 传递给智能体。
+
+```json
+{
+  "sessionId": "6a5a19ebce406a6aee929fe0",
+  "message": "3号楼2单元501水管爆了，地上全是水！",
+  "botId": "449022b0-ff71-4f47-b8b4-2eac094c575e",
+  "eventId": "a277efc6-025f-41cd-8888-43e3a8e8e28f"
+}
+```
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| sessionId | 是 | 会话ID，来自句子秒懂 |
+| message | 是 | 消息内容（通常为工单创建时的原始消息） |
+| botId | 否 | 覆盖默认 botId |
+| eventId | 否 | 覆盖默认 eventId |
+
+#### POST /api/jzm/token（调试用）
+
+获取当前缓存的 accessToken 信息，用于调试。
+
+返回示例：
+```json
+{
+  "success": true,
+  "accessToken": "ODVkY2NkNGUt...",
+  "expiresAt": "2026-07-18T12:00:00.000Z",
+  "remainingSeconds": 6800
 }
 ```
 
@@ -221,6 +262,10 @@ D:\飞书20260713-145800\
    - `FEISHU_APP_SECRET` = 你的 App Secret
    - `FEISHU_APP_TOKEN` = 你的多维表格 app_token
    - `FEISHU_TABLE_ID` = 你的数据表 table_id
+   - `JZMM_ACCESS_KEY_ID` = 句子秒懂 accessKeyId
+   - `JZMM_ACCESS_KEY_SECRET` = 句子秒懂 accessKeySecret
+   - `JZMM_BOT_ID` = 流程引擎 botId（可选，有默认值）
+   - `JZMM_EVENT_ID` = 流程引擎 eventId（可选，有默认值）
 6. 点击 Deploy，等待构建完成
 7. 访问 Render 分配的 URL（如 `https://property-oa.onrender.com`）
 
@@ -250,3 +295,5 @@ D:\飞书20260713-145800\
 - 2026-07-17：移除句子秒懂 AI 模块
 - 2026-07-17：对接飞书多维表格（读写双向同步）
 - 2026-07-17：前端切换为 API 模式（操作实时写回飞书）
+- 2026-07-18：对接句子秒懂流程引擎（accessToken 鉴权 + 事件触发）
+- 2026-07-18：工单完成时自动触发句子秒懂事件（需创建工单时传入 sessionId）

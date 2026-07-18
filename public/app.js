@@ -804,7 +804,64 @@ function buildActions(t) {
   if(t.status==='confirm') return isLead(t)?`<button class="btn green" onclick="confirmDone('${t.id}')">确认完成</button><button class="btn danger" onclick="reject('${t.id}')">驳回工单</button>`:hint('等待主管审核；处理人不可转单。');
   return hint('工单已完成，流程结束。');
 }
-function assignTicket(id){var t=state.tickets.find(x=>x.id===id);if(!t||t.status!=='wait'||!isLead(t)){toast('无权指派该工单');return;}var el=$('#assignWorker');if(!el)return;t.worker=el.value;t.status='doing';var durEl=$('#assignDuration');if(durEl)t.estimatedHours=parseFloat(durEl.value)||2;pushStep(t,t.type==='repair'?'工单分配':'主管指派',roleObj().name);save();apiPatch(t.id,{status:'doing',worker:t.worker});afterAction(id,`已指派给 ${t.worker}，预计 ${t.estimatedHours||2}h`);}
+function assignTicket(id){
+  var t=state.tickets.find(x=>x.id===id);
+  if(!t||t.status!=='wait'||!isLead(t)){toast('无权指派该工单');return;}
+  var el=$('#assignWorker');if(!el)return;
+  var workerName=el.value;
+  var durEl=$('#assignDuration');
+  var estHours=durEl?parseFloat(durEl.value)||2:2;
+
+  // 日程冲突检测：检查该师傅当前是否有时间重叠
+  var conflicts=checkAssignConflicts(workerName, t, estHours);
+  if(conflicts.length){
+    var msg='⚠️ 日程冲突提醒：\n\n'+workerName+' 在以下时段已有工单：\n\n';
+    conflicts.forEach(function(c){
+      msg+='• '+c.ticketId+'（'+c.cat+'）\n  时间：'+c.startTime+' ~ '+c.endTime+'\n  重叠：'+c.overlap+'小时\n\n';
+    });
+    msg+='当前工单预计时段：'+conflicts[0].newStart+' ~ '+conflicts[0].newEnd+'\n\n确定仍要派单给该师傅吗？';
+    if(!confirm(msg))return;
+  }
+
+  t.worker=workerName;
+  t.status='doing';
+  t.estimatedHours=estHours;
+  pushStep(t,t.type==='repair'?'工单分配':'主管指派',roleObj().name);
+  save();apiPatch(t.id,{status:'doing',worker:t.worker});
+  afterAction(id,'已指派给 '+t.worker+'，预计 '+(t.estimatedHours||2)+'h');
+}
+
+function checkAssignConflicts(workerName, newTicket, estHours){
+  var newStart=new Date(newTicket.created||new Date().toISOString());
+  var newEnd=new Date(newStart.getTime()+estHours*3600000);
+  var results=[];
+
+  state.tickets.forEach(function(t){
+    if(t.id===newTicket.id)return;
+    if(t.worker!==workerName)return;
+    if(t.status==='done'||t.status==='wait')return;
+    // 计算已有工单的时间块
+    var tStart=new Date(t.created);
+    var tHours=estimateDuration(t);
+    var tEnd=new Date(tStart.getTime()+tHours*3600000);
+    // 判断是否重叠
+    if(newStart<tEnd&&newEnd>tStart){
+      var overlapStart=Math.max(newStart.getTime(),tStart.getTime());
+      var overlapEnd=Math.min(newEnd.getTime(),tEnd.getTime());
+      var overlapH=((overlapEnd-overlapStart)/3600000).toFixed(1);
+      results.push({
+        ticketId:t.id,
+        cat:t.cat||'',
+        startTime:fmtHM(tStart),
+        endTime:fmtHM(tEnd),
+        overlap:overlapH,
+        newStart:fmtHM(newStart),
+        newEnd:fmtHM(newEnd)
+      });
+    }
+  });
+  return results;
+}
 function workerFinish(id,mode){var t=state.tickets.find(x=>x.id===id);if(!t||t.status!=='doing'){toast('当前状态不可提交');return;}var allowed=t.type==='repair'?(t.worker===roleWorkerName()):(currentRole.startsWith('pm_keeper_'));if(!allowed){toast('仅当前负责人可提交，且不可转单');return;}if(t.type==='repair'&&!t.steps.some(s=>s.title.includes('现场确认')))pushStep(t,'现场确认',t.worker);pushStep(t,t.type==='repair'?'维修完成·提交结果':'处理完成·提交结果',t.worker);t.status='confirm';save();apiPatch(t.id,{status:'confirm'});afterAction(id,'已提交结果，等待主管审核');}
 function reject(id){var t=state.tickets.find(x=>x.id===id);if(!t||t.status!=='confirm'||!isLead(t)){toast('仅主管可驳回待确认工单');return;}var reason=prompt('请输入驳回原因（必填）：','现场材料不完整，请补充后重新提交');if(reason===null)return;reason=reason.trim();if(!reason){toast('驳回原因不能为空');return;}t.rejectHistory=t.rejectHistory||[];t.rejectHistory.push({reason:reason,who:roleObj().name,time:new Date().toISOString()});pushStep(t,'主管驳回：'+reason,roleObj().name);t.status='doing';save();apiPatch(t.id,{status:'doing',rejectReason:reason});afterAction(id,'工单已驳回给原负责人，不允许转单');}
 function afterAction(id,msg){toast(msg);renderAll();renderDashboard();if(id)openDrawer(id);}
