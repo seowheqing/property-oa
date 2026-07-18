@@ -189,10 +189,19 @@ function roleWorkerName() {
 function applyRoleView() {
   var isWorker = currentRole.startsWith('worker_');
   var isKeeper = currentRole.startsWith('pm_keeper_');
-  // 师傅/管家视图：隐藏管理相关导航
+  // 师傅/管家视图：隐藏管理平台和看板
   $$('.nav button').forEach(b => {
     if (b.dataset.page === 'admin') b.style.display = (isWorker || isKeeper) ? 'none' : '';
+    if (b.dataset.page === 'dashboard') b.style.display = (isWorker || isKeeper) ? 'none' : '';
   });
+  // 师傅日程页面：自动筛选为只看自己
+  if (isWorker || isKeeper) {
+    var myName = roleWorkerName() || currentRole.replace('pm_keeper_','');
+    setTimeout(function(){
+      var sel = $('#schedule-worker');
+      if (sel) { sel.value = myName; renderSchedule(); }
+    }, 50);
+  }
   // 切换到师傅视图时默认显示工单页
   if (isWorker) { navTo('repair'); }
   else if (isKeeper) { navTo('complaint'); }
