@@ -764,7 +764,9 @@ function buildActions(t) {
   if(t.status==='wait'){
     if(!isLead(t)) return hint(`仅${repair?'工程部':'物业'}主管可指派。`);
     var people=activeStaff(repair?'维修工':'物业管家'); if(!people.length)return hint('暂无在岗处理人。');
-    return `<select id="assignWorker">${people.map(s=>`<option value="${esc(s.name)}">${esc(s.name)} · ${esc(s.skill)}</option>`).join('')}</select><button class="btn" onclick="assignTicket('${t.id}')">确认指派</button>`;
+    var defHrs = CAT_DEFAULT_HOURS[t.cat] || 2;
+    var timeOpts = [0.5,1,1.5,2,2.5,3,4,5,6,8].map(h => `<option value="${h}"${h===defHrs?' selected':''}>${h}小时</option>`).join('');
+    return `<select id="assignWorker">${people.map(s=>`<option value="${esc(s.name)}">${esc(s.name)} · ${esc(s.skill)}</option>`).join('')}</select><select id="assignDuration" title="预计处理时间">${timeOpts}</select><button class="btn" onclick="assignTicket('${t.id}')">确认指派</button>`;
   }
   if(t.status==='doing'){
     if(mine) return `<button class="btn teal" onclick="uploadPhoto('${t.id}')">上传现场照片</button><button class="btn green" onclick="workerFinish('${t.id}','once')">处理完成·提交</button>`;
@@ -774,7 +776,7 @@ function buildActions(t) {
   if(t.status==='confirm') return isLead(t)?`<button class="btn green" onclick="confirmDone('${t.id}')">确认完成</button><button class="btn danger" onclick="reject('${t.id}')">驳回工单</button>`:hint('等待主管审核；处理人不可转单。');
   return hint('工单已完成，流程结束。');
 }
-function assignTicket(id){var t=state.tickets.find(x=>x.id===id);if(!t||t.status!=='wait'||!isLead(t)){toast('无权指派该工单');return;}var el=$('#assignWorker');if(!el)return;t.worker=el.value;t.status='doing';pushStep(t,t.type==='repair'?'工单分配':'主管指派',roleObj().name);save();apiPatch(t.record_id,{status:'doing',worker:t.worker});afterAction(id,`已指派给 ${t.worker}`);}
+function assignTicket(id){var t=state.tickets.find(x=>x.id===id);if(!t||t.status!=='wait'||!isLead(t)){toast('无权指派该工单');return;}var el=$('#assignWorker');if(!el)return;t.worker=el.value;t.status='doing';var durEl=$('#assignDuration');if(durEl)t.estimatedHours=parseFloat(durEl.value)||2;pushStep(t,t.type==='repair'?'工单分配':'主管指派',roleObj().name);save();apiPatch(t.record_id,{status:'doing',worker:t.worker});afterAction(id,`已指派给 ${t.worker}，预计 ${t.estimatedHours||2}h`);}
 function workerFinish(id,mode){var t=state.tickets.find(x=>x.id===id);if(!t||t.status!=='doing'){toast('当前状态不可提交');return;}var allowed=t.type==='repair'?(t.worker===roleWorkerName()):(currentRole==='pm_keeper');if(!allowed){toast('仅当前负责人可提交，且不可转单');return;}if(t.type==='repair'&&!t.steps.some(s=>s.title.includes('现场确认')))pushStep(t,'现场确认',t.worker);pushStep(t,t.type==='repair'?'维修完成·提交结果':'处理完成·提交结果',t.worker);t.status='confirm';save();apiPatch(t.record_id,{status:'confirm'});afterAction(id,'已提交结果，等待主管审核');}
 function reject(id){var t=state.tickets.find(x=>x.id===id);if(!t||t.status!=='confirm'||!isLead(t)){toast('仅主管可驳回待确认工单');return;}var reason=prompt('请输入驳回原因（必填）：','现场材料不完整，请补充后重新提交');if(reason===null)return;reason=reason.trim();if(!reason){toast('驳回原因不能为空');return;}t.rejectHistory=t.rejectHistory||[];t.rejectHistory.push({reason:reason,who:roleObj().name,time:new Date().toISOString()});pushStep(t,'主管驳回：'+reason,roleObj().name);t.status='doing';save();apiPatch(t.record_id,{status:'doing',rejectReason:reason});afterAction(id,'工单已驳回给原负责人，不允许转单');}
 function afterAction(id,msg){toast(msg);renderAll();renderDashboard();if(id)openDrawer(id);}
@@ -807,7 +809,9 @@ function workerAvgHours(name) {
 }
 
 function estimateDuration(t) {
-  // 优先用该师傅的平均时长，上限 8h；否则按类别默认
+  // 优先用派单时手动设定的预计时间
+  if (t.estimatedHours) return t.estimatedHours;
+  // 其次用该师傅的平均时长，上限 8h
   var avg = workerAvgHours(t.worker);
   if (avg != null) return Math.min(8, Math.max(0.5, avg));
   return CAT_DEFAULT_HOURS[t.cat] || 2;
