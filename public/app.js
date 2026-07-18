@@ -145,10 +145,9 @@ function navTo(page) {
    ============================================================ */
 function initRole() {
   const sel = $('#roleSelect');
-  // 管理角色（固定）
+  // 管理角色（合并为一个主管）
   var html = '<optgroup label="管理层">';
-  html += '<option value="eng_lead">工程部主管</option>';
-  html += '<option value="pm_lead">物业主管</option>';
+  html += '<option value="eng_lead">主管</option>';
   html += '</optgroup>';
   // 维修工（从 state.staff 动态读取）
   var workers = state.staff.filter(s => s.role === '维修工');
@@ -176,8 +175,7 @@ function initRole() {
   };
 }
 function roleObj() {
-  if (currentRole === 'eng_lead') return { id: 'eng_lead', name: '工程部主管', kind: '管理' };
-  if (currentRole === 'pm_lead') return { id: 'pm_lead', name: '物业主管', kind: '管理' };
+  if (currentRole === 'eng_lead') return { id: 'eng_lead', name: '主管', kind: '管理' };
   // 动态角色
   var name = currentRole.replace(/^worker_|^pm_keeper_/, '');
   var s = state.staff.find(x => x.name === name);
@@ -716,8 +714,8 @@ function inferPriority(t) {
 }
 function typeLabel(t) { return t.type === 'repair' ? '报修' : (t.type === 'complaint' ? '投诉' : '帮助/其他'); }
 function typeCats(type) { return type === 'repair' ? SEED.repairCats : (type === 'complaint' ? SEED.complaintCats : HELP_CATS); }
-function leadFor(t) { return t.type === 'repair' ? 'eng_lead' : 'pm_lead'; }
-function isLead(t) { return currentRole === leadFor(t); }
+function leadFor(t) { return 'eng_lead'; }
+function isLead(t) { return currentRole === 'eng_lead'; }
 function priorityHtml(p) { p = p || 'normal'; return `<span class="priority-tag ${p}"><i class="priority-dot ${p}"></i>${PRIORITY_LABEL[p]}</span>`; }
 function ageLabel(t) {
   var end = t.finished || new Date().toISOString();
@@ -759,10 +757,10 @@ function initFilters(type) {
 function renderTickets(type) {
   var tbody = $(`#tbody-${type}`); if (!tbody) return;
   var rows = state.tickets.filter(t => t.type === type);
-  // 师傅/管家视图：只看自己的工单
+  // 师傅/管家视图：只看自己负责的工单
   var myName = roleWorkerName();
-  if (currentRole.startsWith('worker_') && myName) rows = rows.filter(t => t.worker === myName || t.status === 'wait');
-  if (currentRole.startsWith('pm_keeper_')) { var keeperName = currentRole.replace('pm_keeper_',''); rows = rows.filter(t => t.worker === keeperName || t.status === 'wait'); }
+  if (currentRole.startsWith('worker_') && myName) rows = rows.filter(t => t.worker === myName);
+  if (currentRole.startsWith('pm_keeper_')) { var keeperName = currentRole.replace('pm_keeper_',''); rows = rows.filter(t => t.worker === keeperName); }
   var fs=$(`#filter-status-${type}`).value, fc=$(`#filter-cat-${type}`).value, fp=$(`#filter-priority-${type}`).value, sort=$(`#sort-${type}`).value;
   if(fs) rows=rows.filter(t=>t.status===fs); if(fc) rows=rows.filter(t=>t.cat===fc); if(fp) rows=rows.filter(t=>t.priority===fp);
   rows.sort((a,b) => sort==='newest' ? new Date(b.created)-new Date(a.created) : sort==='oldest' ? new Date(a.created)-new Date(b.created) : (PRIORITY_ORDER[b.priority]-PRIORITY_ORDER[a.priority] || new Date(a.created)-new Date(b.created)));

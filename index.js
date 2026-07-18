@@ -263,7 +263,7 @@ app.patch('/api/tickets/:id', async (req, res) => {
       // 构造完结通知话术
       const finishedTime = ticket.finished || new Date().toISOString();
       const fmtTime = new Date(finishedTime).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-      const completeMessage = `————工单完结提醒————\n时段：${fmtTime}\n工单号：${ticket.id}\n反馈事件：${ticket.cat}\n反馈原因：${ticket.desc}\n处理人：${ticket.worker || '未指定'}\n原文消息：${originalMsg}\n———！！已处理完毕！！———`;
+      const completeMessage = `————工单完结提醒————\n时段：${fmtTime}\n工单号：${ticket.id}\n反馈事件：${ticket.cat}\n处理人：${ticket.worker || '未指定'}\n原文消息：${originalMsg}\n———！！已处理完毕！！———`;
       triggerJzmWorkflowEvent(sid, completeMessage).catch(err => {
         console.error('[句子秒懂] 完成工单触发事件失败:', err.message);
       });
