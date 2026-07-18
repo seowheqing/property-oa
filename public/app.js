@@ -150,11 +150,21 @@ function initRole() {
     localStorage.setItem(LS_ROLE, currentRole);
     const r = SEED.roles.find(x => x.id === currentRole);
     toast('已切换角色：' + r.name);
-    renderTickets('repair');
-    renderTickets('complaint');
-    // 若抽屉打开则刷新操作按钮
-    if (openTicketId) openDrawer(openTicketId);
+    applyRoleView();
   };
+}
+function applyRoleView() {
+  var isWorker = currentRole.startsWith('worker_');
+  var isKeeper = currentRole === 'pm_keeper';
+  // 师傅/管家视图：隐藏管理相关导航
+  $$('.nav button').forEach(b => {
+    if (b.dataset.page === 'admin') b.style.display = (isWorker || isKeeper) ? 'none' : '';
+  });
+  // 切换到师傅视图时默认显示工单页
+  if (isWorker) { navTo('repair'); }
+  else if (isKeeper) { navTo('complaint'); }
+  renderAll();
+  if (openTicketId) openDrawer(openTicketId);
 }
 function roleObj() { return SEED.roles.find(r => r.id === currentRole); }
 function roleWorkerName() {
@@ -728,6 +738,10 @@ function initFilters(type) {
 function renderTickets(type) {
   var tbody = $(`#tbody-${type}`); if (!tbody) return;
   var rows = state.tickets.filter(t => t.type === type);
+  // 师傅/管家视图：只看自己的工单
+  var myName = roleWorkerName();
+  if (currentRole.startsWith('worker_') && myName) rows = rows.filter(t => t.worker === myName || t.status === 'wait');
+  if (currentRole === 'pm_keeper') { var keeperNames = SEED.keepers || []; rows = rows.filter(t => t.worker === '陈管家' || t.worker === '周管家' || t.status === 'wait'); }
   var fs=$(`#filter-status-${type}`).value, fc=$(`#filter-cat-${type}`).value, fp=$(`#filter-priority-${type}`).value, sort=$(`#sort-${type}`).value;
   if(fs) rows=rows.filter(t=>t.status===fs); if(fc) rows=rows.filter(t=>t.cat===fc); if(fp) rows=rows.filter(t=>t.priority===fp);
   rows.sort((a,b) => sort==='newest' ? new Date(b.created)-new Date(a.created) : sort==='oldest' ? new Date(a.created)-new Date(b.created) : (PRIORITY_ORDER[b.priority]-PRIORITY_ORDER[a.priority] || new Date(a.created)-new Date(b.created)));
@@ -774,7 +788,7 @@ function renderDashboard(){var ts=state.tickets,done=ts.filter(t=>t.status==='do
 function drawCharts(){var blue='#1677ff',teal='#13c2c2',orange='#fa8c16',purple='#722ed1',green='#52c41a';var today=new Date(),days=[],keys=[];for(var i=29;i>=0;i--){var d=new Date(today);d.setHours(0,0,0,0);d.setDate(d.getDate()-i);keys.push(d.toISOString().slice(0,10));days.push((d.getMonth()+1)+'/'+d.getDate());}var series=['repair','complaint','help'].map(type=>keys.map(k=>state.tickets.filter(t=>t.type===type&&new Date(t.created).toISOString().slice(0,10)===k).length));getChart('chart-trend').setOption({tooltip:{trigger:'axis'},legend:{data:['报修','投诉','帮助/其他']},grid:{left:40,right:20,top:40,bottom:30},xAxis:{type:'category',data:days},yAxis:{type:'value',minInterval:1},series:[{name:'报修',type:'line',smooth:true,data:series[0],itemStyle:{color:blue}},{name:'投诉',type:'line',smooth:true,data:series[1],itemStyle:{color:orange}},{name:'帮助/其他',type:'line',smooth:true,data:series[2],itemStyle:{color:teal}}]});var people=state.staff,metrics=people.map(s=>staffMetrics(s.name));getChart('chart-worker-count').setOption({tooltip:{trigger:'axis'},grid:{left:40,right:20,top:20,bottom:45},xAxis:{type:'category',data:people.map(s=>s.name),axisLabel:{rotate:25}},yAxis:{type:'value',minInterval:1},series:[{type:'bar',data:metrics.map(m=>m.done.length),itemStyle:{color:teal,borderRadius:[5,5,0,0]},label:{show:true,position:'top'}}]});getChart('chart-worker-dur').setOption({tooltip:{trigger:'axis',formatter:'{b}: {c} 小时'},grid:{left:45,right:20,top:20,bottom:45},xAxis:{type:'category',data:people.map(s=>s.name),axisLabel:{rotate:25}},yAxis:{type:'value',name:'小时'},series:[{type:'bar',data:metrics.map(m=>m.avg==null?0:+m.avg.toFixed(1)),itemStyle:{color:purple,borderRadius:[5,5,0,0]},label:{show:true,position:'top',formatter:'{c}h'}}]});var cats={};state.tickets.forEach(t=>cats[t.cat]=(cats[t.cat]||0)+1);getChart('chart-cat').setOption({tooltip:{trigger:'item'},legend:{bottom:0},series:[{type:'pie',radius:['38%','65%'],center:['50%','44%'],data:Object.entries(cats).map(([name,value])=>({name,value})),label:{formatter:'{b}\n{c}'}}]});var statuses={wait:0,doing:0,confirm:0,done:0};state.tickets.forEach(t=>statuses[t.status]++);getChart('chart-status').setOption({tooltip:{trigger:'item'},legend:{bottom:0},color:[orange,blue,purple,green],series:[{type:'pie',radius:['45%','68%'],center:['50%','44%'],data:Object.entries(statuses).map(([k,value])=>({name:STATUS_LABEL[k],value}))}]});var events=Object.entries(cats).sort((a,b)=>b[1]-a[1]);getChart('chart-event-frequency').setOption({tooltip:{trigger:'axis'},grid:{left:90,right:30,top:15,bottom:25},xAxis:{type:'value',minInterval:1},yAxis:{type:'category',inverse:true,data:events.map(x=>x[0])},series:[{type:'bar',data:events.map(x=>x[1]),itemStyle:{color:blue,borderRadius:[0,5,5,0]},label:{show:true,position:'right'}}]});}
 function renderAll(){['repair','complaint','help'].forEach(renderTickets);renderStaff();if($('#page-dashboard').classList.contains('active'))renderDashboard();}
 
-window.onload=async function(){await load();enhanceState();setupEnhancedUI();initNav();initRole();['repair','complaint','help'].forEach(initFilters);initSchedule();renderAll();renderDashboard();$('#drawerClose').onclick=closeDrawer;$('#drawerMask').onclick=closeDrawer;};
+window.onload=async function(){await load();enhanceState();setupEnhancedUI();initNav();initRole();['repair','complaint','help'].forEach(initFilters);initSchedule();renderAll();renderDashboard();applyRoleView();$('#drawerClose').onclick=closeDrawer;$('#drawerMask').onclick=closeDrawer;};
 
 /* ============================================================
    师傅日程 · 时间轴排班与冲突检测
