@@ -211,10 +211,18 @@ app.get('/api/tickets/:id', (req, res) => {
 // POST /api/tickets — 创建工单
 app.post('/api/tickets', (req, res) => {
   const t = req.body;
-  // id 不再是必传参数，如未传或传入无效值则自动生成 WX + 时间戳
+  // id 不再是必传参数，如未传或传入无效值则自动生成顺序工单号
   const rawId = t.id ? String(t.id).trim() : '';
   const invalidIds = ['测试', 'test', ''];
-  const id = (rawId && !invalidIds.includes(rawId.toLowerCase())) ? rawId : ('WX' + Date.now().toString(36).toUpperCase());
+  let id;
+  if (rawId && !invalidIds.includes(rawId.toLowerCase())) {
+    id = rawId;
+  } else {
+    // 查找数据库中最大的WX编号，+1生成新号
+    const maxRow = queryOne("SELECT id FROM tickets WHERE id LIKE 'WX%' ORDER BY CAST(SUBSTR(id, 3) AS INTEGER) DESC LIMIT 1");
+    const maxNum = maxRow ? parseInt(maxRow.id.replace('WX', '')) || 0 : 0;
+    id = 'WX' + String(maxNum + 1).padStart(4, '0');
+  }
   const now = t.created || new Date().toISOString();
   try {
     db.run(
