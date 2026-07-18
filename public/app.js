@@ -201,13 +201,6 @@ function applyRoleView() {
   renderAll();
   if (openTicketId) openDrawer(openTicketId);
 }
-function roleObj() { return SEED.roles.find(r => r.id === currentRole); }
-function roleWorkerName() {
-  // 维修工角色对应的师傅名
-  const map = { worker_zhang: '张师傅', worker_li: '李师傅', worker_wang: '王师傅', worker_zhao: '赵师傅' };
-  return map[currentRole] || null;
-}
-
 /* ============================================================
    工单列表渲染
    ============================================================ */
