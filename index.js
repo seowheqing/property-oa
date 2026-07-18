@@ -211,8 +211,8 @@ app.get('/api/tickets/:id', (req, res) => {
 // POST /api/tickets — 创建工单
 app.post('/api/tickets', (req, res) => {
   const t = req.body;
-  const id = t.id;
-  if (!id) return res.status(400).json({ error: '缺少必填字段 id（工单号）' });
+  // id 不再是必传参数，如未传则自动生成 WX + 时间戳
+  const id = t.id || ('WX' + Date.now().toString(36).toUpperCase());
   const now = t.created || new Date().toISOString();
   try {
     db.run(
