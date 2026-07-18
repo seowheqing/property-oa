@@ -34,9 +34,9 @@
       <div class="page-sub">实时统计报修 / 投诉工单运行情况（数据来自本地演示数据，可在各模块操作后自动更新）</div>
 
       <div class="kpi-grid">
-        <div class="kpi"><div class="label">本月工单总量</div><div class="value" id="kpi-total">—</div><div class="trend">报修 + 投诉</div></div>
-        <div class="kpi teal"><div class="label">报修工单</div><div class="value" id="kpi-repair">—</div><div class="trend">水暖/电路/电器/门窗/公共设施</div></div>
-        <div class="kpi purple"><div class="label">投诉工单</div><div class="value" id="kpi-complaint">—</div><div class="trend">突发/物业/便民/其他</div></div>
+        <div class="kpi" style="cursor:pointer" onclick="navTo('dashboard')"><div class="label">本月工单总量</div><div class="value" id="kpi-total">—</div><div class="trend">报修 + 投诉</div></div>
+        <div class="kpi teal" style="cursor:pointer" onclick="navTo('repair')"><div class="label">报修工单</div><div class="value" id="kpi-repair">—</div><div class="trend">水暖/电路/电器/门窗/公共设施</div></div>
+        <div class="kpi purple" style="cursor:pointer" onclick="navTo('complaint')"><div class="label">投诉工单</div><div class="value" id="kpi-complaint">—</div><div class="trend">突发/物业/便民/其他</div></div>
         <div class="kpi orange"><div class="label">平均处理时长</div><div class="value" id="kpi-avg">—</div><div class="trend">已完成工单</div></div>
         <div class="kpi green"><div class="label">按时完成率</div><div class="value" id="kpi-rate">—</div><div class="trend">24h 内完成</div></div>
       </div>
@@ -169,7 +169,18 @@
       <div class="form-row"><label>角色</label>
         <select id="f-role"><option>维修工</option><option>物业管家</option><option>安保</option><option>保洁</option></select>
       </div>
-      <div class="form-row"><label>工种 / 专长</label><input id="f-skill" placeholder="如：水暖/电路"></div>
+      <div class="form-row"><label>擅长技能（可多选）</label>
+        <div class="skill-tags" id="f-skill-tags">
+          <label class="skill-tag"><input type="checkbox" value="水暖"><span>水暖</span></label>
+          <label class="skill-tag"><input type="checkbox" value="电路"><span>电路</span></label>
+          <label class="skill-tag"><input type="checkbox" value="电器"><span>电器</span></label>
+          <label class="skill-tag"><input type="checkbox" value="门窗"><span>门窗</span></label>
+          <label class="skill-tag"><input type="checkbox" value="公共设施"><span>公共设施</span></label>
+          <label class="skill-tag"><input type="checkbox" value="物业服务"><span>物业服务</span></label>
+          <label class="skill-tag"><input type="checkbox" value="生活帮助"><span>生活帮助</span></label>
+          <label class="skill-tag"><input type="checkbox" value="其他"><span>其他</span></label>
+        </div>
+      </div>
       <div class="form-row"><label>电话</label><input id="f-phone" placeholder="138-0000-0000"></div>
       <div class="form-row"><label>在岗状态</label>
         <select id="f-status"><option value="on">在岗</option><option value="busy">忙碌</option><option value="off">休息</option></select>

@@ -133,6 +133,11 @@ function initNav() {
   });
 }
 
+function navTo(page) {
+  var btn = $$('.nav button').find(b => b.dataset.page === page);
+  if (btn) btn.click();
+}
+
 /* ============================================================
    角色切换
    ============================================================ */
@@ -586,7 +591,9 @@ function openStaffModal(id) {
   $('#modal-title').textContent = id ? '编辑人员' : '新增人员';
   $('#f-name').value = s.name;
   $('#f-role').value = s.role;
-  $('#f-skill').value = s.skill;
+  // 技能标签多选
+  var skills = (s.skill || '').split('/').map(x => x.trim());
+  $$('#f-skill-tags input[type=checkbox]').forEach(cb => { cb.checked = skills.includes(cb.value); });
   $('#f-phone').value = s.phone;
   $('#f-status').value = s.status;
   $('#f-done').value = s.done;
@@ -594,13 +601,17 @@ function openStaffModal(id) {
 }
 function closeStaffModal() { $('#staffModal').classList.remove('open'); }
 
+function getSelectedSkills() {
+  return $$('#f-skill-tags input[type=checkbox]:checked').map(cb => cb.value).join('/') || '—';
+}
+
 function saveStaff() {
   const name = $('#f-name').value.trim();
   if (!name) { toast('请填写姓名'); return; }
   const data = {
     name,
     role: $('#f-role').value,
-    skill: $('#f-skill').value.trim() || '—',
+    skill: getSelectedSkills(),
     phone: $('#f-phone').value.trim() || '—',
     status: $('#f-status').value,
     done: parseInt($('#f-done').value) || 0,
