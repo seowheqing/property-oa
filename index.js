@@ -44,7 +44,6 @@ async function initDB() {
       priority TEXT DEFAULT 'normal',
       status TEXT DEFAULT 'wait',
       worker TEXT DEFAULT '',
-      source TEXT DEFAULT '系统录入',
       created TEXT NOT NULL,
       finished TEXT DEFAULT '',
       reject_reason TEXT DEFAULT '',
@@ -84,7 +83,6 @@ function rowToTicket(row) {
     priority: row.priority,
     status: row.status,
     worker: row.worker || null,
-    source: row.source,
     created: row.created,
     finished: row.finished || null,
     rejectReason: row.reject_reason || '',
@@ -114,13 +112,14 @@ app.get('/api/tickets/:id', (req, res) => {
 // POST /api/tickets — 创建工单
 app.post('/api/tickets', (req, res) => {
   const t = req.body;
-  const id = t.id || 'WX' + Date.now();
+  const id = t.id;
+  if (!id) return res.status(400).json({ error: '缺少必填字段 id（工单号）' });
   const now = t.created || new Date().toISOString();
   try {
     db.run(
-      `INSERT INTO tickets (id, type, cat, desc, loc, priority, status, worker, source, created, estimated_hours)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, t.type || 'repair', t.cat || '其他', t.desc || '', t.loc || '', t.priority || 'normal', t.status || 'wait', t.worker || '', t.source || '系统录入', now, t.estimated_hours || 0]
+      `INSERT INTO tickets (id, type, cat, desc, loc, priority, status, worker, created, estimated_hours)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, t.type || 'repair', t.cat || '其他', t.desc || '', t.loc || '', t.priority || 'normal', t.status || 'wait', t.worker || '', now, t.estimated_hours || 0]
     );
     saveDB();
     const row = queryOne('SELECT * FROM tickets WHERE id = ?', [id]);
