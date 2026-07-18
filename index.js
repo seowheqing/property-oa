@@ -254,7 +254,11 @@ app.patch('/api/tickets/:id', async (req, res) => {
     // 工单完成时自动触发句子秒懂流程引擎事件
     if (updates.status === 'done' && ticket.message) {
       const sid = ticket.sessionId || JZMM_SESSION_ID;
-      triggerJzmWorkflowEvent(sid, ticket.message).catch(err => {
+      // 构造完结通知话术，而非原始消息
+      const finishedTime = ticket.finished || new Date().toISOString();
+      const fmtTime = new Date(finishedTime).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+      const completeMessage = `————工单完结提醒————\n时段：${fmtTime}\n工单号：${ticket.id}\n反馈事件：${ticket.cat}\n反馈原因：${ticket.desc}\n处理人：${ticket.worker || '未指定'}\n原文消息：${ticket.message}\n———！！已处理完毕！！———`;
+      triggerJzmWorkflowEvent(sid, completeMessage).catch(err => {
         console.error('[句子秒懂] 完成工单触发事件失败:', err.message);
       });
     }
