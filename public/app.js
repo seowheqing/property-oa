@@ -33,7 +33,7 @@ async function load() {
     try {
       var resp = await fetch(API_BASE + '/api/tickets');
       var json = await resp.json();
-      if (json.data && json.data.length) {
+      if (json.data) {
         state.tickets = json.data.filter(t => t.id && t.type);
         saveLocal();
         return;
@@ -42,8 +42,8 @@ async function load() {
   }
   // 回退：使用本地数据
   var localRaw = localStorage.getItem(LS_KEY);
-  if (localRaw) { try { state.tickets = JSON.parse(localRaw).tickets || []; } catch(e) { state.tickets = JSON.parse(JSON.stringify(SEED.tickets)); } }
-  else { state.tickets = JSON.parse(JSON.stringify(SEED.tickets)); }
+  if (localRaw) { try { state.tickets = JSON.parse(localRaw).tickets || []; } catch(e) { state.tickets = []; } }
+  else { state.tickets = []; }
 }
 
 function saveLocal() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
