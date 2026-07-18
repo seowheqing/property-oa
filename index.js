@@ -1,14 +1,15 @@
 /**
  * 物业工单系统后端
- * 读取飞书多维表格数据，前端操作写回飞书
+ * sql.js (纯JS SQLite) 本地存储
  */
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 const path = require('path');
-
-// 读取环境变量（简易版，不引入 dotenv）
 const fs = require('fs');
+const initSqlJs = require('sql.js');
+
+// 环境变量
 const envPath = path.join(__dirname, '.env');
 if (fs.existsSync(envPath)) {
   fs.readFileSync(envPath, 'utf-8').split('\n').forEach(line => {
@@ -17,81 +18,81 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const APP_ID = process.env.FEISHU_APP_ID;
-const APP_SECRET = process.env.FEISHU_APP_SECRET;
-const APP_TOKEN = process.env.FEISHU_APP_TOKEN;
-const TABLE_ID = process.env.FEISHU_TABLE_ID;
 const PORT = process.env.PORT || 3001;
+const NOTIFY_WEBHOOK = process.env.NOTIFY_WEBHOOK || '';
+const DB_PATH = path.join(__dirname, 'data.db');
 
-const BASE_URL = 'https://open.feishu.cn/open-apis';
+let db;
 
-// ============ Token 缓存 ============
-let tokenCache = { token: null, expire: 0 };
+async function initDB() {
+  const SQL = await initSqlJs();
+  // 如果已有数据库文件则加载
+  if (fs.existsSync(DB_PATH)) {
+    const buffer = fs.readFileSync(DB_PATH);
+    db = new SQL.Database(buffer);
+  } else {
+    db = new SQL.Database();
+  }
 
-async function getTenantToken() {
-  if (tokenCache.token && Date.now() < tokenCache.expire) return tokenCache.token;
-  const resp = await fetch(`${BASE_URL}/auth/v3/tenant_access_token/internal`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ app_id: APP_ID, app_secret: APP_SECRET })
-  });
-  const data = await resp.json();
-  if (data.code !== 0) throw new Error('获取 token 失败: ' + data.msg);
-  tokenCache = { token: data.tenant_access_token, expire: Date.now() + (data.expire - 300) * 1000 };
-  return tokenCache.token;
+  db.run(`
+    CREATE TABLE IF NOT EXISTS tickets (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL DEFAULT 'repair',
+      cat TEXT NOT NULL DEFAULT '其他',
+      desc TEXT DEFAULT '',
+      loc TEXT DEFAULT '',
+      priority TEXT DEFAULT 'normal',
+      status TEXT DEFAULT 'wait',
+      worker TEXT DEFAULT '',
+      source TEXT DEFAULT '系统录入',
+      alert_type TEXT DEFAULT '',
+      alert_reason TEXT DEFAULT '',
+      created TEXT NOT NULL,
+      finished TEXT DEFAULT '',
+      reject_reason TEXT DEFAULT '',
+      estimated_hours REAL DEFAULT 0
+    )
+  `);
+  saveDB();
 }
 
-async function feishuGet(path) {
-  const token = await getTenantToken();
-  const resp = await fetch(`${BASE_URL}${path}`, { headers: { Authorization: `Bearer ${token}` } });
-  return resp.json();
+function saveDB() {
+  const data = db.export();
+  const buffer = Buffer.from(data);
+  fs.writeFileSync(DB_PATH, buffer);
 }
 
-async function feishuPost(path, body) {
-  const token = await getTenantToken();
-  const resp = await fetch(`${BASE_URL}${path}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  return resp.json();
+function queryAll(sql, params) {
+  const stmt = db.prepare(sql);
+  if (params) stmt.bind(params);
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
 }
 
-async function feishuPut(path, body) {
-  const token = await getTenantToken();
-  const resp = await fetch(`${BASE_URL}${path}`, {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  return resp.json();
+function queryOne(sql, params) {
+  const rows = queryAll(sql, params);
+  return rows[0] || null;
 }
 
-// ============ 字段映射 ============
-const PRIORITY_MAP = { '紧急': 'urgent', '高': 'high', '普通': 'normal', '低': 'low' };
-const STATUS_MAP = { '待派单': 'wait', '处理中': 'doing', '待确认': 'confirm', '已完成': 'done' };
-const TYPE_MAP = { '报修': 'repair', '投诉': 'complaint', '帮助/其他': 'help' };
-
-const PRIORITY_REV = Object.fromEntries(Object.entries(PRIORITY_MAP).map(([k, v]) => [v, k]));
-const STATUS_REV = Object.fromEntries(Object.entries(STATUS_MAP).map(([k, v]) => [v, k]));
-const TYPE_REV = Object.fromEntries(Object.entries(TYPE_MAP).map(([k, v]) => [v, k]));
-
-function recordToTicket(record) {
-  const f = record.fields;
+function rowToTicket(row) {
   return {
-    record_id: record.record_id,
-    id: f['文本'] || record.record_id,
-    type: TYPE_MAP[f['工单类型']] || 'repair',
-    cat: f['事件类别'] || '其他',
-    desc: f['问题描述'] || '',
-    loc: f['位置'] || '',
-    priority: PRIORITY_MAP[f['紧急程度']] || 'normal',
-    status: STATUS_MAP[f['工单状态']] || 'wait',
-    worker: f['负责人'] || null,
-    created: f['创建时间'] ? new Date(f['创建时间']).toISOString() : new Date().toISOString(),
-    finished: f['完成时间'] ? new Date(f['完成时间']).toISOString() : null,
-    rejectReason: f['驳回原因'] || '',
-    source: f['来源'] || '系统录入',
+    id: row.id,
+    type: row.type,
+    cat: row.cat,
+    desc: row.desc,
+    loc: row.loc,
+    priority: row.priority,
+    status: row.status,
+    worker: row.worker || null,
+    source: row.source,
+    alert_type: row.alert_type || row.type,
+    alert_reason: row.alert_reason || row.desc,
+    created: row.created,
+    finished: row.finished || null,
+    rejectReason: row.reject_reason || '',
+    estimated_hours: row.estimated_hours || 0
   };
 }
 
@@ -99,78 +100,77 @@ function recordToTicket(record) {
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-// 静态文件（前端页面）
 app.use(express.static(path.join(__dirname, 'public')));
 
-// GET /api/tickets — 获取所有工单
-app.get('/api/tickets', async (req, res) => {
+// GET /api/tickets
+app.get('/api/tickets', (req, res) => {
+  const rows = queryAll('SELECT * FROM tickets ORDER BY created DESC');
+  res.json({ data: rows.map(rowToTicket) });
+});
+
+// GET /api/tickets/:id
+app.get('/api/tickets/:id', (req, res) => {
+  const row = queryOne('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).json({ error: '工单不存在' });
+  res.json({ data: rowToTicket(row) });
+});
+
+// POST /api/tickets — 创建工单
+app.post('/api/tickets', (req, res) => {
+  const t = req.body;
+  const id = t.id || 'WX' + Date.now();
+  const now = t.created || new Date().toISOString();
   try {
-    let all = [], pageToken = '';
-    do {
-      const url = `/bitable/v1/apps/${APP_TOKEN}/tables/${TABLE_ID}/records?page_size=100${pageToken ? '&page_token=' + pageToken : ''}`;
-      const data = await feishuGet(url);
-      if (data.code !== 0) return res.status(500).json({ error: data.msg });
-      all = all.concat((data.data.items || []).map(recordToTicket));
-      pageToken = data.data.has_more ? data.data.page_token : '';
-    } while (pageToken);
-    res.json({ data: all });
+    db.run(
+      `INSERT INTO tickets (id, type, cat, desc, loc, priority, status, worker, source, alert_type, alert_reason, created, estimated_hours)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, t.type || 'repair', t.cat || '其他', t.desc || '', t.loc || '', t.priority || 'normal', t.status || 'wait', t.worker || '', t.source || '系统录入', t.alert_type || t.type || 'repair', t.alert_reason || t.desc || '', now, t.estimated_hours || 0]
+    );
+    saveDB();
+    const row = queryOne('SELECT * FROM tickets WHERE id = ?', [id]);
+    res.json({ success: true, record: rowToTicket(row) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// PATCH /api/tickets/:recordId — 更新工单字段（派单/驳回/完成等）
-app.patch('/api/tickets/:recordId', async (req, res) => {
-  try {
-    const { recordId } = req.params;
-    const updates = req.body; // { status, worker, rejectReason, finished }
-    const fields = {};
-    if (updates.status) fields['工单状态'] = STATUS_REV[updates.status] || updates.status;
-    if (updates.worker !== undefined) fields['负责人'] = updates.worker || '';
-    if (updates.rejectReason !== undefined) fields['驳回原因'] = updates.rejectReason;
-    if (updates.finished) fields['完成时间'] = new Date(updates.finished).getTime();
-    if (updates.priority) fields['紧急程度'] = PRIORITY_REV[updates.priority] || updates.priority;
+// PATCH /api/tickets/:id — 更新工单
+app.patch('/api/tickets/:id', (req, res) => {
+  const updates = req.body;
+  const allowed = { status: 'status', worker: 'worker', priority: 'priority', finished: 'finished', reject_reason: 'reject_reason', rejectReason: 'reject_reason', alert_type: 'alert_type', alert_reason: 'alert_reason', estimated_hours: 'estimated_hours', cat: 'cat', loc: 'loc', desc: 'desc' };
+  const sets = [];
+  const values = [];
 
-    const url = `/bitable/v1/apps/${APP_TOKEN}/tables/${TABLE_ID}/records/${recordId}`;
-    const data = await feishuPut(url, { fields });
-    if (data.code !== 0) return res.status(500).json({ error: data.msg, code: data.code });
-    res.json({ success: true, record: recordToTicket(data.data.record) });
+  for (const [key, col] of Object.entries(allowed)) {
+    if (updates[key] !== undefined) {
+      sets.push(`${col} = ?`);
+      values.push(updates[key]);
+    }
+  }
+  if (!sets.length) return res.status(400).json({ error: '无更新字段' });
+
+  values.push(req.params.id);
+  try {
+    db.run(`UPDATE tickets SET ${sets.join(', ')} WHERE id = ?`, values);
+    saveDB();
+    const row = queryOne('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
+    if (!row) return res.status(404).json({ error: '工单不存在' });
+    res.json({ success: true, record: rowToTicket(row) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// POST /api/tickets — 创建新工单
-app.post('/api/tickets', async (req, res) => {
-  try {
-    const t = req.body;
-    const fields = {
-      '文本': t.id || 'WX' + Date.now(),
-      '工单类型': TYPE_REV[t.type] || '报修',
-      '事件类别': t.cat || '其他',
-      '问题描述': t.desc || '',
-      '位置': t.loc || '',
-      '紧急程度': PRIORITY_REV[t.priority] || '普通',
-      '工单状态': STATUS_REV[t.status] || '待派单',
-      '负责人': t.worker || '',
-      '创建时间': Date.now(),
-      '来源': t.source || '系统录入',
-    };
-    const url = `/bitable/v1/apps/${APP_TOKEN}/tables/${TABLE_ID}/records`;
-    const data = await feishuPost(url, { fields });
-    if (data.code !== 0) return res.status(500).json({ error: data.msg, code: data.code });
-    res.json({ success: true, record: recordToTicket(data.data.record) });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+// DELETE /api/tickets/:id
+app.delete('/api/tickets/:id', (req, res) => {
+  db.run('DELETE FROM tickets WHERE id = ?', [req.params.id]);
+  saveDB();
+  res.json({ success: true });
 });
 
 // ============ 通知回调 ============
-const NOTIFY_WEBHOOK = process.env.NOTIFY_WEBHOOK || process.env.WECHAT_WEBHOOK || '';
-
 async function sendNotify(payload) {
-  if (!NOTIFY_WEBHOOK) return { success: false, error: '未配置 NOTIFY_WEBHOOK 环境变量' };
+  if (!NOTIFY_WEBHOOK) return { success: false, error: '未配置 NOTIFY_WEBHOOK' };
   try {
     const resp = await fetch(NOTIFY_WEBHOOK, {
       method: 'POST',
@@ -184,46 +184,25 @@ async function sendNotify(payload) {
   }
 }
 
-// POST /api/notify — 工单状态变更通知（推送到秒懂或企业微信）
+// POST /api/notify
 app.post('/api/notify', async (req, res) => {
-  try {
-    const { ticketId, event } = req.body;
-    const url = `/bitable/v1/apps/${APP_TOKEN}/tables/${TABLE_ID}/records?page_size=100`;
-    const data = await feishuGet(url);
-    const records = (data.data.items || []).map(recordToTicket);
-    const ticket = records.find(t => t.id === ticketId || t.record_id === ticketId);
-
-    if (!ticket) return res.status(404).json({ error: '工单不存在' });
-
-    // 推送工单完整数据 + 事件类型
-    const payload = {
-      event: event || 'completed',
-      ticket: {
-        id: ticket.id,
-        type: ticket.type,
-        cat: ticket.cat,
-        desc: ticket.desc,
-        loc: ticket.loc,
-        priority: ticket.priority,
-        status: ticket.status,
-        worker: ticket.worker,
-        created: ticket.created,
-        finished: ticket.finished,
-        rejectReason: ticket.rejectReason
-      },
-      timestamp: new Date().toISOString()
-    };
-
-    const result = await sendNotify(payload);
-    res.json(result);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  const { ticketId, event } = req.body;
+  const row = queryOne('SELECT * FROM tickets WHERE id = ?', [ticketId]);
+  if (!row) return res.status(404).json({ error: '工单不存在' });
+  const ticket = rowToTicket(row);
+  const payload = { event: event || 'completed', ticket, timestamp: new Date().toISOString() };
+  const result = await sendNotify(payload);
+  res.json(result);
 });
 
-app.listen(PORT, () => {
-  console.log(`物业工单后端已启动: http://localhost:${PORT}`);
-  console.log(`飞书表格: https://juzihudong.feishu.cn/base/${APP_TOKEN}`);
-  if (WECHAT_WEBHOOK) console.log('企业微信群通知：已配置');
-  else console.log('企业微信群通知：未配置 WECHAT_WEBHOOK');
+// ============ 启动 ============
+initDB().then(() => {
+  app.listen(PORT, () => {
+    const rows = queryAll('SELECT COUNT(*) as c FROM tickets');
+    const count = rows[0] ? rows[0].c : 0;
+    console.log(`物业工单后端已启动: http://localhost:${PORT}`);
+    console.log(`数据库: ${DB_PATH} (${count} 条工单)`);
+    if (NOTIFY_WEBHOOK) console.log('通知回调：已配置');
+    else console.log('通知回调：未配置 NOTIFY_WEBHOOK');
+  });
 });
