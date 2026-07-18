@@ -143,19 +143,52 @@ function navTo(page) {
    ============================================================ */
 function initRole() {
   const sel = $('#roleSelect');
-  sel.innerHTML = SEED.roles.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
-  sel.value = currentRole;
+  // 管理角色（固定）
+  var html = '<optgroup label="管理层">';
+  html += '<option value="eng_lead">工程部主管</option>';
+  html += '<option value="pm_lead">物业主管</option>';
+  html += '</optgroup>';
+  // 维修工（从 state.staff 动态读取）
+  var workers = state.staff.filter(s => s.role === '维修工');
+  if (workers.length) {
+    html += '<optgroup label="维修工">';
+    workers.forEach(s => { html += `<option value="worker_${esc(s.name)}">${esc(s.name)} · ${esc(s.skill)}</option>`; });
+    html += '</optgroup>';
+  }
+  // 管家（从 state.staff 动态读取）
+  var keepers = state.staff.filter(s => s.role === '物业管家');
+  if (keepers.length) {
+    html += '<optgroup label="物业管家">';
+    keepers.forEach(s => { html += `<option value="pm_keeper_${esc(s.name)}">${esc(s.name)} · ${esc(s.skill)}</option>`; });
+    html += '</optgroup>';
+  }
+  sel.innerHTML = html;
+  // 恢复上次选中的角色
+  if (sel.querySelector(`option[value="${currentRole}"]`)) sel.value = currentRole;
+  else { currentRole = 'eng_lead'; sel.value = currentRole; }
   sel.onchange = () => {
     currentRole = sel.value;
     localStorage.setItem(LS_ROLE, currentRole);
-    const r = SEED.roles.find(x => x.id === currentRole);
-    toast('已切换角色：' + r.name);
+    toast('已切换角色：' + sel.options[sel.selectedIndex].text);
     applyRoleView();
   };
 }
+function roleObj() {
+  if (currentRole === 'eng_lead') return { id: 'eng_lead', name: '工程部主管', kind: '管理' };
+  if (currentRole === 'pm_lead') return { id: 'pm_lead', name: '物业主管', kind: '管理' };
+  // 动态角色
+  var name = currentRole.replace(/^worker_|^pm_keeper_/, '');
+  var s = state.staff.find(x => x.name === name);
+  if (s) return { id: currentRole, name: s.name, kind: s.role };
+  return { id: currentRole, name: currentRole, kind: '未知' };
+}
+function roleWorkerName() {
+  if (currentRole.startsWith('worker_')) return currentRole.replace('worker_', '');
+  return null;
+}
 function applyRoleView() {
   var isWorker = currentRole.startsWith('worker_');
-  var isKeeper = currentRole === 'pm_keeper';
+  var isKeeper = currentRole.startsWith('pm_keeper_');
   // 师傅/管家视图：隐藏管理相关导航
   $$('.nav button').forEach(b => {
     if (b.dataset.page === 'admin') b.style.display = (isWorker || isKeeper) ? 'none' : '';
@@ -741,7 +774,7 @@ function renderTickets(type) {
   // 师傅/管家视图：只看自己的工单
   var myName = roleWorkerName();
   if (currentRole.startsWith('worker_') && myName) rows = rows.filter(t => t.worker === myName || t.status === 'wait');
-  if (currentRole === 'pm_keeper') { var keeperNames = SEED.keepers || []; rows = rows.filter(t => t.worker === '陈管家' || t.worker === '周管家' || t.status === 'wait'); }
+  if (currentRole.startsWith('pm_keeper_')) { var keeperName = currentRole.replace('pm_keeper_',''); rows = rows.filter(t => t.worker === keeperName || t.status === 'wait'); }
   var fs=$(`#filter-status-${type}`).value, fc=$(`#filter-cat-${type}`).value, fp=$(`#filter-priority-${type}`).value, sort=$(`#sort-${type}`).value;
   if(fs) rows=rows.filter(t=>t.status===fs); if(fc) rows=rows.filter(t=>t.cat===fc); if(fp) rows=rows.filter(t=>t.priority===fp);
   rows.sort((a,b) => sort==='newest' ? new Date(b.created)-new Date(a.created) : sort==='oldest' ? new Date(a.created)-new Date(b.created) : (PRIORITY_ORDER[b.priority]-PRIORITY_ORDER[a.priority] || new Date(a.created)-new Date(b.created)));
@@ -770,14 +803,14 @@ function buildActions(t) {
   }
   if(t.status==='doing'){
     if(mine) return `<button class="btn teal" onclick="uploadPhoto('${t.id}')">上传现场照片</button><button class="btn green" onclick="workerFinish('${t.id}','once')">处理完成·提交</button>`;
-    if(keeper&&currentRole==='pm_keeper') return `<button class="btn green" onclick="workerFinish('${t.id}','once')">处理完成·提交</button>`;
+    if(keeper&&currentRole.startsWith('pm_keeper_')) return `<button class="btn green" onclick="workerFinish('${t.id}','once')">处理完成·提交</button>`;
     return hint(`已指派给 ${esc(t.worker||'处理人')}。处理人之间禁止转单，如需调整须由主管驳回后重新派单。`);
   }
   if(t.status==='confirm') return isLead(t)?`<button class="btn green" onclick="confirmDone('${t.id}')">确认完成</button><button class="btn danger" onclick="reject('${t.id}')">驳回工单</button>`:hint('等待主管审核；处理人不可转单。');
   return hint('工单已完成，流程结束。');
 }
 function assignTicket(id){var t=state.tickets.find(x=>x.id===id);if(!t||t.status!=='wait'||!isLead(t)){toast('无权指派该工单');return;}var el=$('#assignWorker');if(!el)return;t.worker=el.value;t.status='doing';var durEl=$('#assignDuration');if(durEl)t.estimatedHours=parseFloat(durEl.value)||2;pushStep(t,t.type==='repair'?'工单分配':'主管指派',roleObj().name);save();apiPatch(t.record_id,{status:'doing',worker:t.worker});afterAction(id,`已指派给 ${t.worker}，预计 ${t.estimatedHours||2}h`);}
-function workerFinish(id,mode){var t=state.tickets.find(x=>x.id===id);if(!t||t.status!=='doing'){toast('当前状态不可提交');return;}var allowed=t.type==='repair'?(t.worker===roleWorkerName()):(currentRole==='pm_keeper');if(!allowed){toast('仅当前负责人可提交，且不可转单');return;}if(t.type==='repair'&&!t.steps.some(s=>s.title.includes('现场确认')))pushStep(t,'现场确认',t.worker);pushStep(t,t.type==='repair'?'维修完成·提交结果':'处理完成·提交结果',t.worker);t.status='confirm';save();apiPatch(t.record_id,{status:'confirm'});afterAction(id,'已提交结果，等待主管审核');}
+function workerFinish(id,mode){var t=state.tickets.find(x=>x.id===id);if(!t||t.status!=='doing'){toast('当前状态不可提交');return;}var allowed=t.type==='repair'?(t.worker===roleWorkerName()):(currentRole.startsWith('pm_keeper_'));if(!allowed){toast('仅当前负责人可提交，且不可转单');return;}if(t.type==='repair'&&!t.steps.some(s=>s.title.includes('现场确认')))pushStep(t,'现场确认',t.worker);pushStep(t,t.type==='repair'?'维修完成·提交结果':'处理完成·提交结果',t.worker);t.status='confirm';save();apiPatch(t.record_id,{status:'confirm'});afterAction(id,'已提交结果，等待主管审核');}
 function reject(id){var t=state.tickets.find(x=>x.id===id);if(!t||t.status!=='confirm'||!isLead(t)){toast('仅主管可驳回待确认工单');return;}var reason=prompt('请输入驳回原因（必填）：','现场材料不完整，请补充后重新提交');if(reason===null)return;reason=reason.trim();if(!reason){toast('驳回原因不能为空');return;}t.rejectHistory=t.rejectHistory||[];t.rejectHistory.push({reason:reason,who:roleObj().name,time:new Date().toISOString()});pushStep(t,'主管驳回：'+reason,roleObj().name);t.status='doing';save();apiPatch(t.record_id,{status:'doing',rejectReason:reason});afterAction(id,'工单已驳回给原负责人，不允许转单');}
 function afterAction(id,msg){toast(msg);renderAll();renderDashboard();if(id)openDrawer(id);}
 
