@@ -870,7 +870,60 @@ function afterAction(id,msg){toast(msg);renderAll();renderDashboard();if(id)open
 function staffMetrics(name){var all=state.tickets.filter(t=>t.worker===name),done=all.filter(t=>t.status==='done'),active=all.filter(t=>t.status==='doing'||t.status==='confirm'),d=done.map(t=>durHours(t.created,t.finished)).filter(x=>x!=null),avg=d.length?(d.reduce((a,b)=>a+b,0)/d.length):null,on=done.filter(isOnTime).length,cats=[...new Set(all.map(t=>t.cat))];return{all,done,active,avg,onRate:done.length?Math.round(on/done.length*100):0,cats};}
 function performanceScore(m){if(!m.done.length)return 60;return Math.max(0,Math.min(100,Math.round(m.onRate*.7+Math.max(0,30-(m.avg||0)))));}
 function renderPerformance(){var body=$('#tbody-performance');if(!body)return;body.innerHTML=state.staff.map(s=>{var m=staffMetrics(s.name),score=performanceScore(m),cls=score>=85?'good':score<70?'warn':'';return `<tr><td>${avatar(s.name,staffColor(s.name))}<b>${esc(s.name)}</b><br><small>${esc(s.role)} · ${esc(s.skill)}</small></td><td class="type-list">${m.cats.length?m.cats.map(c=>`<span class="tag cat">${esc(c)}</span>`).join(' '):'暂无工单'}</td><td>${m.all.length}</td><td>${m.done.length}</td><td>${m.active.length}</td><td>${m.avg==null?'—':m.avg.toFixed(1)+'h'}</td><td>${m.done.length?m.onRate+'%':'—'}</td><td><span class="performance-score ${cls}">${score}</span><small>/100</small></td></tr>`}).join('');}
-function renderStaff(){var tbody=$('#tbody-staff');tbody.innerHTML=state.staff.map(s=>{var m=staffMetrics(s.name),st=s.status==='on'?'在岗':s.status==='busy'?'忙碌':'休息',dot=s.status==='on'?'on':s.status==='busy'?'busy':'off';return `<tr style="cursor:default"><td>${avatar(s.name,staffColor(s.name))}${esc(s.name)}</td><td>${esc(s.role)}</td><td>${esc(s.skill)}</td><td class="mono">${esc(s.phone)}</td><td><span class="staff-status"><span class="status-dot ${dot}"></span>${st}</span></td><td><b>${m.done.length}</b> / 共${m.all.length}</td><td><button class="btn sm ghost" onclick="openStaffModal('${s.id}')">编辑</button> <button class="btn sm danger" onclick="deleteStaff('${s.id}')">删除</button></td></tr>`}).join('');}
+function renderStaff(){var tbody=$('#tbody-staff');tbody.innerHTML=state.staff.map(s=>{var m=staffMetrics(s.name),st=s.status==='on'?'在岗':s.status==='busy'?'忙碌':'休息',dot=s.status==='on'?'on':s.status==='busy'?'busy':'off';return `<tr style="cursor:pointer" onclick="openStaffProfile('${s.id}')"><td>${avatar(s.name,staffColor(s.name))}${esc(s.name)}</td><td>${esc(s.role)}</td><td>${esc(s.skill)}</td><td class="mono">${esc(s.phone)}</td><td><span class="staff-status"><span class="status-dot ${dot}"></span>${st}</span></td><td><b>${m.done.length}</b> / 共${m.all.length}</td><td><button class="btn sm" onclick="event.stopPropagation();openStaffProfile('${s.id}')">档案</button> <button class="btn sm ghost" onclick="event.stopPropagation();openStaffModal('${s.id}')">编辑</button> <button class="btn sm danger" onclick="event.stopPropagation();deleteStaff('${s.id}')">删除</button></td></tr>`}).join('');}
+
+function openStaffProfile(id){
+  var s=state.staff.find(x=>x.id===id);if(!s)return;
+  var m=staffMetrics(s.name);
+  var score=performanceScore(m);
+  var cls=score>=85?'good':score<70?'warn':'';
+  var st=s.status==='on'?'在岗':s.status==='busy'?'忙碌':'休息';
+  // 最近工单列表
+  var recentTickets=state.tickets.filter(t=>t.worker===s.name).sort((a,b)=>new Date(b.created)-new Date(a.created)).slice(0,10);
+  var ticketRows=recentTickets.map(t=>`<tr onclick="openDrawer('${t.id}')"><td class="mono">${esc(t.id)}</td><td><span class="tag cat">${esc(t.cat)}</span></td><td>${esc(t.loc)}</td><td><span class="tag ${STATUS_CLASS[t.status]}">${STATUS_LABEL[t.status]}</span></td><td>${fmtTime(t.created)}</td><td>${t.status==='done'&&t.finished?durHours(t.created,t.finished)+'h':'—'}</td></tr>`).join('');
+  // SLA详情
+  var slaDetail='';
+  if(m.done.length){
+    var urgent=m.done.filter(t=>t.priority==='urgent'),high=m.done.filter(t=>t.priority==='high'),normal=m.done.filter(t=>t.priority==='normal');
+    slaDetail=`<div style="margin-top:12px;font-size:13px;color:#5e6573">SLA明细：紧急(2h内) ${urgent.filter(isOnTime).length}/${urgent.length} · 高(8h内) ${high.filter(isOnTime).length}/${high.length} · 普通(24h内) ${normal.filter(isOnTime).length}/${normal.length}</div>`;
+  }
+
+  $('#drawer-title').textContent=s.name+' · 人员档案';
+  $('#drawer-sub').textContent=s.role+' · '+s.skill;
+  $('#drawer-body').innerHTML=`
+    <div class="drawer-section">
+      <h4>基本信息</h4>
+      <div class="elements">
+        <div class="elem"><div class="k">姓名</div><div class="v">${esc(s.name)}</div></div>
+        <div class="elem"><div class="k">角色</div><div class="v">${esc(s.role)}</div></div>
+        <div class="elem"><div class="k">技能</div><div class="v">${esc(s.skill)}</div></div>
+        <div class="elem"><div class="k">电话</div><div class="v">${esc(s.phone)}</div></div>
+        <div class="elem"><div class="k">状态</div><div class="v">${st}</div></div>
+      </div>
+    </div>
+    <div class="drawer-section">
+      <h4>绩效概览</h4>
+      <div class="elements">
+        <div class="elem"><div class="k">综合评分</div><div class="v"><span class="performance-score ${cls}">${score}</span> / 100</div></div>
+        <div class="elem"><div class="k">总工单</div><div class="v">${m.all.length} 张</div></div>
+        <div class="elem"><div class="k">已完成</div><div class="v">${m.done.length} 张</div></div>
+        <div class="elem"><div class="k">处理中</div><div class="v">${m.active.length} 张</div></div>
+        <div class="elem"><div class="k">平均处理时长</div><div class="v">${m.avg==null?'暂无数据':m.avg.toFixed(1)+' 小时'}</div></div>
+        <div class="elem"><div class="k">按时完成率</div><div class="v">${m.done.length?m.onRate+'%':'暂无数据'}</div></div>
+      </div>
+      ${slaDetail}
+    </div>
+    <div class="drawer-section">
+      <h4>擅长处理</h4>
+      <div class="type-list">${m.cats.length?m.cats.map(c=>'<span class="tag cat">'+esc(c)+'</span>').join(' '):'<span style="color:#aaa">暂无工单记录</span>'}</div>
+    </div>
+    <div class="drawer-section">
+      <h4>最近工单（最多10条）</h4>
+      ${recentTickets.length?'<div class="table-wrap"><table><thead><tr><th>工单号</th><th>类型</th><th>位置</th><th>状态</th><th>创建时间</th><th>耗时</th></tr></thead><tbody>'+ticketRows+'</tbody></table></div>':'<span style="color:#aaa">暂无工单记录</span>'}
+    </div>
+  `;
+  $('#drawerMask').classList.add('open');$('#drawer').classList.add('open');
+}
 
 function renderDashboard(){var ts=state.tickets,done=ts.filter(t=>t.status==='done');$('#kpi-total').innerHTML=ts.length+' <small>张</small>';$('#kpi-repair').innerHTML=ts.filter(t=>t.type==='repair').length+' <small>张</small>';$('#kpi-complaint').innerHTML=ts.filter(t=>t.type==='complaint').length+' <small>张</small>';$('#kpi-help').innerHTML=ts.filter(t=>t.type==='help').length+' <small>张</small>';$('#kpi-urgent').innerHTML=ts.filter(t=>t.priority==='urgent'&&t.status!=='done').length+' <small>张</small>';var d=done.map(t=>durHours(t.created,t.finished)).filter(x=>x!=null);$('#kpi-avg').innerHTML=(d.length?(d.reduce((a,b)=>a+b,0)/d.length).toFixed(1):'—')+' <small>小时</small>';$('#kpi-rate').innerHTML=(done.length?Math.round(done.filter(isOnTime).length/done.length*100):0)+' <small>%</small>';drawCharts();renderPerformance();}
 function drawCharts(){var blue='#1677ff',teal='#13c2c2',orange='#fa8c16',purple='#722ed1',green='#52c41a';var today=new Date(),days=[],keys=[];for(var i=29;i>=0;i--){var d=new Date(today);d.setHours(0,0,0,0);d.setDate(d.getDate()-i);keys.push(d.toISOString().slice(0,10));days.push((d.getMonth()+1)+'/'+d.getDate());}var series=['repair','complaint','help'].map(type=>keys.map(k=>state.tickets.filter(t=>t.type===type&&new Date(t.created).toISOString().slice(0,10)===k).length));getChart('chart-trend').setOption({tooltip:{trigger:'axis'},legend:{data:['报修','投诉','帮助/其他']},grid:{left:40,right:20,top:40,bottom:30},xAxis:{type:'category',data:days},yAxis:{type:'value',minInterval:1},series:[{name:'报修',type:'line',smooth:true,data:series[0],itemStyle:{color:blue}},{name:'投诉',type:'line',smooth:true,data:series[1],itemStyle:{color:orange}},{name:'帮助/其他',type:'line',smooth:true,data:series[2],itemStyle:{color:teal}}]});var people=state.staff,metrics=people.map(s=>staffMetrics(s.name));getChart('chart-worker-count').setOption({tooltip:{trigger:'axis'},grid:{left:40,right:20,top:20,bottom:45},xAxis:{type:'category',data:people.map(s=>s.name),axisLabel:{rotate:25}},yAxis:{type:'value',minInterval:1},series:[{type:'bar',data:metrics.map(m=>m.done.length),itemStyle:{color:teal,borderRadius:[5,5,0,0]},label:{show:true,position:'top'}}]});getChart('chart-worker-dur').setOption({tooltip:{trigger:'axis',formatter:'{b}: {c} 小时'},grid:{left:45,right:20,top:20,bottom:45},xAxis:{type:'category',data:people.map(s=>s.name),axisLabel:{rotate:25}},yAxis:{type:'value',name:'小时'},series:[{type:'bar',data:metrics.map(m=>m.avg==null?0:+m.avg.toFixed(1)),itemStyle:{color:purple,borderRadius:[5,5,0,0]},label:{show:true,position:'top',formatter:'{c}h'}}]});var cats={};state.tickets.forEach(t=>cats[t.cat]=(cats[t.cat]||0)+1);getChart('chart-cat').setOption({tooltip:{trigger:'item'},legend:{bottom:0},color:[blue,orange,teal],series:[{type:'pie',radius:['38%','65%'],center:['50%','44%'],data:[{name:'报修',value:state.tickets.filter(t=>t.type==='repair').length},{name:'投诉',value:state.tickets.filter(t=>t.type==='complaint').length},{name:'帮助/其他',value:state.tickets.filter(t=>t.type==='help').length}],label:{formatter:'{b}\n{c}张 ({d}%)'}}]});var statuses={wait:0,doing:0,confirm:0,done:0};state.tickets.forEach(t=>statuses[t.status]++);getChart('chart-status').setOption({tooltip:{trigger:'item'},legend:{bottom:0},color:[orange,blue,purple,green],series:[{type:'pie',radius:['45%','68%'],center:['50%','44%'],data:Object.entries(statuses).map(([k,value])=>({name:STATUS_LABEL[k],value}))}]});var events=Object.entries(cats).sort((a,b)=>b[1]-a[1]);getChart('chart-event-frequency').setOption({tooltip:{trigger:'axis'},grid:{left:90,right:30,top:15,bottom:25},xAxis:{type:'value',minInterval:1},yAxis:{type:'category',inverse:true,data:events.map(x=>x[0])},series:[{type:'bar',data:events.map(x=>x[1]),itemStyle:{color:blue,borderRadius:[0,5,5,0]},label:{show:true,position:'right'}}]});}
