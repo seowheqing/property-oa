@@ -45,8 +45,6 @@ async function initDB() {
       status TEXT DEFAULT 'wait',
       worker TEXT DEFAULT '',
       source TEXT DEFAULT '系统录入',
-      alert_type TEXT DEFAULT '',
-      alert_reason TEXT DEFAULT '',
       created TEXT NOT NULL,
       finished TEXT DEFAULT '',
       reject_reason TEXT DEFAULT '',
@@ -87,8 +85,6 @@ function rowToTicket(row) {
     status: row.status,
     worker: row.worker || null,
     source: row.source,
-    alert_type: row.alert_type || row.type,
-    alert_reason: row.alert_reason || row.desc,
     created: row.created,
     finished: row.finished || null,
     rejectReason: row.reject_reason || '',
@@ -122,9 +118,9 @@ app.post('/api/tickets', (req, res) => {
   const now = t.created || new Date().toISOString();
   try {
     db.run(
-      `INSERT INTO tickets (id, type, cat, desc, loc, priority, status, worker, source, alert_type, alert_reason, created, estimated_hours)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, t.type || 'repair', t.cat || '其他', t.desc || '', t.loc || '', t.priority || 'normal', t.status || 'wait', t.worker || '', t.source || '系统录入', t.alert_type || t.type || 'repair', t.alert_reason || t.desc || '', now, t.estimated_hours || 0]
+      `INSERT INTO tickets (id, type, cat, desc, loc, priority, status, worker, source, created, estimated_hours)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, t.type || 'repair', t.cat || '其他', t.desc || '', t.loc || '', t.priority || 'normal', t.status || 'wait', t.worker || '', t.source || '系统录入', now, t.estimated_hours || 0]
     );
     saveDB();
     const row = queryOne('SELECT * FROM tickets WHERE id = ?', [id]);
@@ -137,7 +133,7 @@ app.post('/api/tickets', (req, res) => {
 // PATCH /api/tickets/:id — 更新工单
 app.patch('/api/tickets/:id', (req, res) => {
   const updates = req.body;
-  const allowed = { status: 'status', worker: 'worker', priority: 'priority', finished: 'finished', reject_reason: 'reject_reason', rejectReason: 'reject_reason', alert_type: 'alert_type', alert_reason: 'alert_reason', estimated_hours: 'estimated_hours', cat: 'cat', loc: 'loc', desc: 'desc' };
+  const allowed = { status: 'status', worker: 'worker', priority: 'priority', finished: 'finished', reject_reason: 'reject_reason', rejectReason: 'reject_reason', estimated_hours: 'estimated_hours', cat: 'cat', loc: 'loc', desc: 'desc' };
   const sets = [];
   const values = [];
 
