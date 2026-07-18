@@ -168,6 +168,13 @@ app.delete('/api/tickets/:id', (req, res) => {
   res.json({ success: true });
 });
 
+// DELETE /api/tickets — 清空全部工单
+app.delete('/api/tickets', (req, res) => {
+  db.run('DELETE FROM tickets');
+  saveDB();
+  res.json({ success: true, message: '已清空全部工单' });
+});
+
 // ============ 通知回调 ============
 async function sendNotify(payload) {
   if (!NOTIFY_WEBHOOK) return { success: false, error: '未配置 NOTIFY_WEBHOOK' };

@@ -68,9 +68,11 @@ function seed() {
   saveLocal();
 }
 function resetDemo() {
-  if (confirm('确定重置为飞书最新数据？')) {
-    localStorage.removeItem(LS_KEY);
-    location.reload();
+  if (confirm('确定清空全部工单数据？')) {
+    fetch(API_BASE + '/api/tickets', {method:'DELETE'}).then(function(){
+      localStorage.removeItem(LS_KEY);
+      location.reload();
+    }).catch(function(){ localStorage.removeItem(LS_KEY); location.reload(); });
   }
 }
 
