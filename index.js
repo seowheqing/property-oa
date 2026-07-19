@@ -239,13 +239,6 @@ app.post('/api/tickets', (req, res) => {
       ? `当前有 ${estimate.workers.length} 名空闲师傅（${estimate.workers.join('、')}），可立即响应` 
       : `当前师傅均在处理中，预计 ${estimate.workers[0]} 最快约 ${estimate.minutes} 分钟后可接单`;
 
-    // 主动推送预估接单时间到居民群
-    const sid = t.sessionId || JZMM_SESSION_ID;
-    const replyMsg = `好的，已收到您的反馈，请您稍等，这边已经帮您联系物业处理。\n\n📋 工单号：${id}\n⏱️ ${estimateMsg}`;
-    triggerJzmWorkflowEvent(sid, replyMsg).catch(e => {
-      console.error('[居民群回复] 推送预估接单时间失败:', e.message);
-    });
-
     res.json({ success: true, record: ticket, estimate: { freeWorkers: estimate.workers, minutesUntilAvailable: estimate.minutes, message: estimateMsg } });
   } catch (e) {
     res.status(500).json({ error: e.message });
