@@ -232,7 +232,12 @@ app.post('/api/tickets', (req, res) => {
     );
     saveDB();
     const row = queryOne('SELECT * FROM tickets WHERE id = ?', [id]);
-    res.json({ success: true, record: rowToTicket(row) });
+    // 计算预估最快接单时间
+    const estimate = estimateNextAvailable();
+    const estimateMsg = estimate.minutes === 0 
+      ? `当前有 ${estimate.workers.length} 名空闲师傅（${estimate.workers.join('、')}），可立即响应` 
+      : `当前师傅均在处理中，预计 ${estimate.workers[0]} 最快约 ${estimate.minutes} 分钟后可接单`;
+    res.json({ success: true, record: rowToTicket(row), estimate: { freeWorkers: estimate.workers, minutesUntilAvailable: estimate.minutes, message: estimateMsg } });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -355,6 +360,61 @@ app.post('/api/jzm/token', async (req, res) => {
   }
 });
 
+// ============ 定时任务：待派单提醒 & 预估接单时间 ============
+const ALERT_SESSION_ID = process.env.JZMM_ALERT_SESSION_ID || JZMM_SESSION_ID;
+const REMINDER_INTERVAL = 5 * 60 * 1000; // 5分钟
+
+function getWaitingTicketsReminder() {
+  const waitTickets = queryAll("SELECT * FROM tickets WHERE status = 'wait'");
+  if (!waitTickets.length) return null;
+  const lines = waitTickets.map(t => `• ${t.id}｜${t.cat}｜${t.loc}｜${t.priority === 'urgent' ? '🔴紧急' : t.priority === 'high' ? '🟠高' : '🔵普通'}｜等待 ${Math.round((Date.now() - new Date(t.created).getTime()) / 60000)}分钟`);
+  return `———待派单提醒（@主管）———\n当前有 ${waitTickets.length} 张工单等待派单：\n\n${lines.join('\n')}\n\n请尽快安排处理人。\n———！！请注意留意！！———`;
+}
+
+function estimateNextAvailable() {
+  // 获取所有在岗师傅，计算最早空闲时间
+  const now = Date.now();
+  const activeWorkers = queryAll("SELECT DISTINCT worker FROM tickets WHERE status = 'doing' AND worker != ''");
+  const allWorkers = ['张师傅', '李师傅', '王师傅', '赵师傅', '孙师傅'];
+  // 没有处理中工单的师傅 = 立即可用
+  const busyNames = activeWorkers.map(r => r.worker);
+  const freeWorkers = allWorkers.filter(w => !busyNames.includes(w));
+  if (freeWorkers.length) {
+    return { workers: freeWorkers, minutes: 0 };
+  }
+  // 所有师傅都忙，找最早完成的
+  let earliest = Infinity;
+  let earliestWorker = '';
+  for (const r of activeWorkers) {
+    const tasks = queryAll("SELECT * FROM tickets WHERE worker = ? AND status = 'doing'", [r.worker]);
+    for (const t of tasks) {
+      const start = new Date(t.created).getTime();
+      const hours = t.estimated_hours || 2;
+      const endTime = start + hours * 3600000;
+      if (endTime < earliest) { earliest = endTime; earliestWorker = r.worker; }
+    }
+  }
+  const minutesLeft = Math.max(0, Math.round((earliest - now) / 60000));
+  return { workers: [earliestWorker], minutes: minutesLeft };
+}
+
+function startReminders() {
+  setInterval(async () => {
+    try {
+      const reminder = getWaitingTicketsReminder();
+      if (reminder) {
+        await triggerJzmWorkflowEvent(ALERT_SESSION_ID, reminder).catch(e => 
+          console.error('[定时提醒] 推送失败:', e.message)
+        );
+        console.log('[定时提醒] 已推送待派单提醒，共', queryAll("SELECT COUNT(*) as c FROM tickets WHERE status='wait'")[0].c, '张');
+      }
+    } catch (e) {
+      console.error('[定时提醒] 错误:', e.message);
+    }
+  }, REMINDER_INTERVAL);
+  console.log(`[定时提醒] 已启动，每 ${REMINDER_INTERVAL/60000} 分钟检查待派单工单`);
+}
+
 // ============ 启动 ============
 initDB().then(() => {
   app.listen(PORT, () => {
@@ -364,5 +424,7 @@ initDB().then(() => {
     console.log(`数据库: ${DB_PATH} (${count} 条工单)`);
     if (NOTIFY_WEBHOOK) console.log('通知回调：已配置');
     else console.log('通知回调：未配置 NOTIFY_WEBHOOK');
+    // 启动定时提醒
+    startReminders();
   });
 });
