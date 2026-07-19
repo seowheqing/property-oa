@@ -426,6 +426,22 @@ app.get('/api/settings/reminder', (req, res) => {
   res.json({ intervalMinutes: reminderInterval / 60000 });
 });
 
+// GET /api/reminder/trigger — 外部cron触发推送检查（防止Render休眠后定时器失效）
+app.get('/api/reminder/trigger', async (req, res) => {
+  try {
+    const reminder = getWaitingTicketsReminder();
+    if (reminder) {
+      await triggerJzmWorkflowEvent(ALERT_SESSION_ID, reminder);
+      console.log('[手动触发] 已推送待派单提醒');
+      res.json({ success: true, message: '已推送提醒', waitCount: queryAll("SELECT COUNT(*) as c FROM tickets WHERE status='wait'")[0].c });
+    } else {
+      res.json({ success: true, message: '当前无待派单工单，无需推送' });
+    }
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST /api/settings/reminder — 设置推送间隔
 app.post('/api/settings/reminder', (req, res) => {
   const { intervalMinutes } = req.body;
