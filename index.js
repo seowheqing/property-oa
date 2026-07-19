@@ -377,7 +377,8 @@ const JZMM_MANAGER_CONTACT_ID = process.env.JZMM_MANAGER_CONTACT_ID || '78813022
  * 通过句子秒懂发送消息API直接发消息到群（支持@人）
  */
 async function sendJzmMessage(roomId, text, mentionContactId) {
-  const url = `https://stride-md.dpclouds.com/api/v2/message/send?token=${JZMM_MSG_TOKEN}`;
+  const baseUrl = process.env.JZMM_MSG_BASE_URL || 'https://open.dpclouds.com';
+  const url = `${baseUrl}/api/v2/message/send?token=${JZMM_MSG_TOKEN}`;
   const body = {
     imBotId: JZMM_IM_BOT_ID,
     imRoomId: roomId,
@@ -447,8 +448,9 @@ function startReminders() {
     try {
       const reminder = getWaitingTicketsReminder();
       if (reminder) {
-        // 使用直接发消息API，支持@主管
-        await sendJzmMessage(JZMM_ALERT_ROOM_ID, reminder, JZMM_MANAGER_CONTACT_ID);
+        await triggerJzmWorkflowEvent(ALERT_SESSION_ID, reminder).catch(e => 
+          console.error('[定时提醒] 推送失败:', e.message)
+        );
         console.log('[定时提醒] 已推送待派单提醒，共', queryAll("SELECT COUNT(*) as c FROM tickets WHERE status='wait'")[0].c, '张');
       }
     } catch (e) {
@@ -468,9 +470,9 @@ app.get('/api/reminder/trigger', async (req, res) => {
   try {
     const reminder = getWaitingTicketsReminder();
     if (reminder) {
-      await sendJzmMessage(JZMM_ALERT_ROOM_ID, reminder, JZMM_MANAGER_CONTACT_ID);
+      await triggerJzmWorkflowEvent(ALERT_SESSION_ID, reminder);
       console.log('[手动触发] 已推送待派单提醒');
-      res.json({ success: true, message: '已推送提醒并@主管', waitCount: queryAll("SELECT COUNT(*) as c FROM tickets WHERE status='wait'")[0].c });
+      res.json({ success: true, message: '已推送提醒', waitCount: queryAll("SELECT COUNT(*) as c FROM tickets WHERE status='wait'")[0].c });
     } else {
       res.json({ success: true, message: '当前无待派单工单，无需推送' });
     }
