@@ -949,7 +949,22 @@ function initDoneFilters(){
   $('#filter-cat-done').onchange=function(){renderDone();};
 }
 
-window.onload=async function(){await load();enhanceState();setupEnhancedUI();initNav();initRole();['repair','complaint','help'].forEach(initFilters);initDoneFilters();initSchedule();renderAll();renderDashboard();applyRoleView();$('#drawerClose').onclick=closeDrawer;$('#drawerMask').onclick=closeDrawer;startAutoSync();};
+function saveReminderInterval(){
+  var sel=$('#reminder-interval');
+  var minutes=parseInt(sel.value);
+  fetch(API_BASE+'/api/settings/reminder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intervalMinutes:minutes})}).then(r=>r.json()).then(d=>{
+    $('#reminder-status').textContent='✓ '+d.message;
+    setTimeout(()=>$('#reminder-status').textContent='',3000);
+  }).catch(()=>{$('#reminder-status').textContent='保存失败';});
+}
+function loadReminderInterval(){
+  fetch(API_BASE+'/api/settings/reminder').then(r=>r.json()).then(d=>{
+    var sel=$('#reminder-interval');
+    if(sel)sel.value=String(d.intervalMinutes);
+  }).catch(()=>{});
+}
+
+window.onload=async function(){await load();enhanceState();setupEnhancedUI();initNav();initRole();['repair','complaint','help'].forEach(initFilters);initDoneFilters();initSchedule();loadReminderInterval();renderAll();renderDashboard();applyRoleView();$('#drawerClose').onclick=closeDrawer;$('#drawerMask').onclick=closeDrawer;startAutoSync();};
 
 function startAutoSync(){setInterval(async function(){try{var resp=await fetch(API_BASE+'/api/tickets');var json=await resp.json();if(json.data&&json.data.length){state.tickets=json.data.filter(t=>t.id&&t.type);state.tickets.forEach(t=>{t.priority=t.priority||inferPriority(t);t.rejectHistory=t.rejectHistory||[];t.steps=t.steps||[];t.photos=t.photos||[];t.aggregated=t.aggregated||[];});saveLocal();renderAll();if($('#page-dashboard').classList.contains('active'))renderDashboard();}}catch(e){}},10000);}
 

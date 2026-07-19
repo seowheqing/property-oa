@@ -362,7 +362,8 @@ app.post('/api/jzm/token', async (req, res) => {
 
 // ============ 定时任务：待派单提醒 & 预估接单时间 ============
 const ALERT_SESSION_ID = process.env.JZMM_ALERT_SESSION_ID || JZMM_SESSION_ID;
-const REMINDER_INTERVAL = 5 * 60 * 1000; // 5分钟
+let reminderInterval = 5 * 60 * 1000; // 默认5分钟
+let reminderTimer = null;
 
 function getWaitingTicketsReminder() {
   const waitTickets = queryAll("SELECT * FROM tickets WHERE status = 'wait'");
@@ -399,7 +400,12 @@ function estimateNextAvailable() {
 }
 
 function startReminders() {
-  setInterval(async () => {
+  if (reminderTimer) clearInterval(reminderTimer);
+  if (reminderInterval <= 0) {
+    console.log('[定时提醒] 已关闭');
+    return;
+  }
+  reminderTimer = setInterval(async () => {
     try {
       const reminder = getWaitingTicketsReminder();
       if (reminder) {
@@ -411,9 +417,23 @@ function startReminders() {
     } catch (e) {
       console.error('[定时提醒] 错误:', e.message);
     }
-  }, REMINDER_INTERVAL);
-  console.log(`[定时提醒] 已启动，每 ${REMINDER_INTERVAL/60000} 分钟检查待派单工单`);
+  }, reminderInterval);
+  console.log(`[定时提醒] 已启动，每 ${reminderInterval/60000} 分钟检查待派单工单`);
 }
+
+// GET /api/settings/reminder
+app.get('/api/settings/reminder', (req, res) => {
+  res.json({ intervalMinutes: reminderInterval / 60000 });
+});
+
+// POST /api/settings/reminder — 设置推送间隔
+app.post('/api/settings/reminder', (req, res) => {
+  const { intervalMinutes } = req.body;
+  if (intervalMinutes === undefined) return res.status(400).json({ error: '缺少 intervalMinutes' });
+  reminderInterval = Math.max(0, Number(intervalMinutes)) * 60000;
+  startReminders();
+  res.json({ success: true, intervalMinutes: reminderInterval / 60000, message: reminderInterval > 0 ? `已设置为每 ${reminderInterval/60000} 分钟推送` : '已关闭推送' });
+});
 
 // ============ 启动 ============
 initDB().then(() => {

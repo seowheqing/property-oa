@@ -167,6 +167,25 @@
           </table>
         </div>
       </div>
+      <div class="card" style="margin-top:20px">
+        <h3 style="font-size:16px;margin-bottom:12px">⚙️ 系统设置</h3>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <label style="font-size:14px">待派单提醒推送间隔：</label>
+          <select id="reminder-interval" style="padding:6px 12px;border:1px solid #e6eaf0;border-radius:8px">
+            <option value="1">1 分钟</option>
+            <option value="3">3 分钟</option>
+            <option value="5" selected>5 分钟</option>
+            <option value="10">10 分钟</option>
+            <option value="15">15 分钟</option>
+            <option value="30">30 分钟</option>
+            <option value="60">60 分钟</option>
+            <option value="0">关闭推送</option>
+          </select>
+          <button class="btn" onclick="saveReminderInterval()">保存</button>
+          <span id="reminder-status" style="font-size:13px;color:#389e0d"></span>
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:#8c8c8c">设置后端每隔多久向预警群推送一次未派单工单提醒。设为"关闭"则不推送。</div>
+      </div>
     </section>
 
   </div>
