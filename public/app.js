@@ -515,7 +515,7 @@ function renderDashboard() {
 
 function getChart(id) {
   if (charts[id]) return charts[id];
-  charts[id] = echarts.init($('#' + id), 'dark');
+  charts[id] = echarts.init($('#' + id));
   return charts[id];
 }
 
