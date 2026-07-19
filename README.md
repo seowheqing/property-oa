@@ -2,7 +2,6 @@
 
 > AI 驱动的物业工单全生命周期管理系统
 
-**线上地址**：https://property-oa.onrender.com  
 **GitHub**：https://github.com/seowheqing/property-oa
 
 ---
