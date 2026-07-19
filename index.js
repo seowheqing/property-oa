@@ -371,7 +371,7 @@ function getWaitingTicketsReminder() {
   const waitTickets = queryAll("SELECT * FROM tickets WHERE status = 'wait'");
   if (!waitTickets.length) return null;
   const lines = waitTickets.map(t => `• ${t.id}｜${t.cat}｜${t.loc}｜${t.priority === 'urgent' ? '🔴紧急' : t.priority === 'high' ? '🟠高' : '🔵普通'}｜等待 ${Math.round((Date.now() - new Date(t.created).getTime()) / 60000)}分钟`);
-  return `———待派单提醒（@主管）———\n当前有 ${waitTickets.length} 张工单等待派单：\n\n${lines.join('\n')}\n\n请尽快安排处理人。\n———！！请注意留意！！———`;
+  return `@主管\u2005\n———待派单提醒———\n当前有 ${waitTickets.length} 张工单等待派单：\n\n${lines.join('\n')}\n\n请尽快安排处理人。\n———！！请注意留意！！———`;
 }
 
 function estimateNextAvailable() {
