@@ -367,11 +367,48 @@ const ALERT_SESSION_ID = process.env.JZMM_ALERT_SESSION_ID || JZMM_SESSION_ID;
 let reminderInterval = 5 * 60 * 1000; // 默认5分钟
 let reminderTimer = null;
 
+// 句子秒懂直接发消息 API 配置
+const JZMM_MSG_TOKEN = process.env.JZMM_MSG_TOKEN || 'd12195ec829f4bc7a84849e79f1c0bc7';
+const JZMM_IM_BOT_ID = process.env.JZMM_IM_BOT_ID || '6a5a1834766986bb5adc5761';
+const JZMM_ALERT_ROOM_ID = process.env.JZMM_ALERT_ROOM_ID || 'R:10856729056671822';
+const JZMM_MANAGER_CONTACT_ID = process.env.JZMM_MANAGER_CONTACT_ID || '7881302262050947';
+
+/**
+ * 通过句子秒懂发送消息API直接发消息到群（支持@人）
+ */
+async function sendJzmMessage(roomId, text, mentionContactId) {
+  const url = `https://stride-md.dpclouds.com/api/v2/message/send?token=${JZMM_MSG_TOKEN}`;
+  const body = {
+    imBotId: JZMM_IM_BOT_ID,
+    imRoomId: roomId,
+    messageType: 7,
+    payload: { text, mentionContactIds: mentionContactId ? [mentionContactId] : [] }
+  };
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const result = await resp.json();
+    if (result.errcode === 0) {
+      console.log('[发消息] 成功发送到群:', roomId);
+      return { success: true, data: result };
+    } else {
+      console.error('[发消息] 失败:', result);
+      return { success: false, error: result };
+    }
+  } catch (e) {
+    console.error('[发消息] 网络错误:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 function getWaitingTicketsReminder() {
   const waitTickets = queryAll("SELECT * FROM tickets WHERE status = 'wait'");
   if (!waitTickets.length) return null;
   const lines = waitTickets.map(t => `• ${t.id}｜${t.cat}｜${t.loc}｜${t.priority === 'urgent' ? '🔴紧急' : t.priority === 'high' ? '🟠高' : '🔵普通'}｜等待 ${Math.round((Date.now() - new Date(t.created).getTime()) / 60000)}分钟`);
-  return `@主管\u2005\n———待派单提醒———\n当前有 ${waitTickets.length} 张工单等待派单：\n\n${lines.join('\n')}\n\n请尽快安排处理人。\n———！！请注意留意！！———`;
+  return `@主管 \n———待派单提醒———\n当前有 ${waitTickets.length} 张工单等待派单：\n\n${lines.join('\n')}\n\n请尽快安排处理人。\n———！！请注意留意！！———`;
 }
 
 function estimateNextAvailable() {
@@ -411,9 +448,8 @@ function startReminders() {
     try {
       const reminder = getWaitingTicketsReminder();
       if (reminder) {
-        await triggerJzmWorkflowEvent(ALERT_SESSION_ID, reminder).catch(e => 
-          console.error('[定时提醒] 推送失败:', e.message)
-        );
+        // 使用直接发消息API，支持@主管
+        await sendJzmMessage(JZMM_ALERT_ROOM_ID, reminder, JZMM_MANAGER_CONTACT_ID);
         console.log('[定时提醒] 已推送待派单提醒，共', queryAll("SELECT COUNT(*) as c FROM tickets WHERE status='wait'")[0].c, '张');
       }
     } catch (e) {
@@ -433,9 +469,9 @@ app.get('/api/reminder/trigger', async (req, res) => {
   try {
     const reminder = getWaitingTicketsReminder();
     if (reminder) {
-      await triggerJzmWorkflowEvent(ALERT_SESSION_ID, reminder);
+      await sendJzmMessage(JZMM_ALERT_ROOM_ID, reminder, JZMM_MANAGER_CONTACT_ID);
       console.log('[手动触发] 已推送待派单提醒');
-      res.json({ success: true, message: '已推送提醒', waitCount: queryAll("SELECT COUNT(*) as c FROM tickets WHERE status='wait'")[0].c });
+      res.json({ success: true, message: '已推送提醒并@主管', waitCount: queryAll("SELECT COUNT(*) as c FROM tickets WHERE status='wait'")[0].c });
     } else {
       res.json({ success: true, message: '当前无待派单工单，无需推送' });
     }
