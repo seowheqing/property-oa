@@ -765,7 +765,7 @@ function initFilters(type) {
 }
 function renderTickets(type) {
   var tbody = $(`#tbody-${type}`); if (!tbody) return;
-  var rows = state.tickets.filter(t => t.type === type);
+  var rows = state.tickets.filter(t => t.type === type && t.status !== 'done');
   // 师傅/管家视图：只看自己负责的工单
   var myName = roleWorkerName();
   if (currentRole.startsWith('worker_') && myName) rows = rows.filter(t => t.worker === myName);
@@ -927,9 +927,29 @@ function openStaffProfile(id){
 
 function renderDashboard(){var ts=state.tickets,done=ts.filter(t=>t.status==='done');$('#kpi-total').innerHTML=ts.length+' <small>张</small>';$('#kpi-repair').innerHTML=ts.filter(t=>t.type==='repair').length+' <small>张</small>';$('#kpi-complaint').innerHTML=ts.filter(t=>t.type==='complaint').length+' <small>张</small>';$('#kpi-help').innerHTML=ts.filter(t=>t.type==='help').length+' <small>张</small>';$('#kpi-urgent').innerHTML=ts.filter(t=>t.priority==='urgent'&&t.status!=='done').length+' <small>张</small>';var d=done.map(t=>durHours(t.created,t.finished)).filter(x=>x!=null);$('#kpi-avg').innerHTML=(d.length?(d.reduce((a,b)=>a+b,0)/d.length).toFixed(1):'—')+' <small>小时</small>';$('#kpi-rate').innerHTML=(done.length?Math.round(done.filter(isOnTime).length/done.length*100):0)+' <small>%</small>';drawCharts();renderPerformance();}
 function drawCharts(){var blue='#1677ff',teal='#13c2c2',orange='#fa8c16',purple='#722ed1',green='#52c41a';var today=new Date(),days=[],keys=[];for(var i=29;i>=0;i--){var d=new Date(today);d.setHours(0,0,0,0);d.setDate(d.getDate()-i);keys.push(d.toISOString().slice(0,10));days.push((d.getMonth()+1)+'/'+d.getDate());}var series=['repair','complaint','help'].map(type=>keys.map(k=>state.tickets.filter(t=>t.type===type&&new Date(t.created).toISOString().slice(0,10)===k).length));getChart('chart-trend').setOption({tooltip:{trigger:'axis'},legend:{data:['报修','投诉','帮助/其他']},grid:{left:40,right:20,top:40,bottom:30},xAxis:{type:'category',data:days},yAxis:{type:'value',minInterval:1},series:[{name:'报修',type:'line',smooth:true,data:series[0],itemStyle:{color:blue}},{name:'投诉',type:'line',smooth:true,data:series[1],itemStyle:{color:orange}},{name:'帮助/其他',type:'line',smooth:true,data:series[2],itemStyle:{color:teal}}]});var people=state.staff,metrics=people.map(s=>staffMetrics(s.name));getChart('chart-worker-count').setOption({tooltip:{trigger:'axis'},grid:{left:40,right:20,top:20,bottom:45},xAxis:{type:'category',data:people.map(s=>s.name),axisLabel:{rotate:25}},yAxis:{type:'value',minInterval:1},series:[{type:'bar',data:metrics.map(m=>m.done.length),itemStyle:{color:teal,borderRadius:[5,5,0,0]},label:{show:true,position:'top'}}]});getChart('chart-worker-dur').setOption({tooltip:{trigger:'axis',formatter:'{b}: {c} 小时'},grid:{left:45,right:20,top:20,bottom:45},xAxis:{type:'category',data:people.map(s=>s.name),axisLabel:{rotate:25}},yAxis:{type:'value',name:'小时'},series:[{type:'bar',data:metrics.map(m=>m.avg==null?0:+m.avg.toFixed(1)),itemStyle:{color:purple,borderRadius:[5,5,0,0]},label:{show:true,position:'top',formatter:'{c}h'}}]});var cats={};state.tickets.forEach(t=>cats[t.cat]=(cats[t.cat]||0)+1);getChart('chart-cat').setOption({tooltip:{trigger:'item'},legend:{bottom:0},color:[blue,orange,teal],series:[{type:'pie',radius:['38%','65%'],center:['50%','44%'],data:[{name:'报修',value:state.tickets.filter(t=>t.type==='repair').length},{name:'投诉',value:state.tickets.filter(t=>t.type==='complaint').length},{name:'帮助/其他',value:state.tickets.filter(t=>t.type==='help').length}],label:{formatter:'{b}\n{c}张 ({d}%)'}}]});var statuses={wait:0,doing:0,confirm:0,done:0};state.tickets.forEach(t=>statuses[t.status]++);getChart('chart-status').setOption({tooltip:{trigger:'item'},legend:{bottom:0},color:[orange,blue,purple,green],series:[{type:'pie',radius:['45%','68%'],center:['50%','44%'],data:Object.entries(statuses).map(([k,value])=>({name:STATUS_LABEL[k],value}))}]});var events=Object.entries(cats).sort((a,b)=>b[1]-a[1]);getChart('chart-event-frequency').setOption({tooltip:{trigger:'axis'},grid:{left:90,right:30,top:15,bottom:25},xAxis:{type:'value',minInterval:1},yAxis:{type:'category',inverse:true,data:events.map(x=>x[0])},series:[{type:'bar',data:events.map(x=>x[1]),itemStyle:{color:blue,borderRadius:[0,5,5,0]},label:{show:true,position:'right'}}]});}
-function renderAll(){['repair','complaint','help'].forEach(renderTickets);renderStaff();if($('#page-dashboard').classList.contains('active'))renderDashboard();}
+function renderAll(){['repair','complaint','help'].forEach(renderTickets);renderDone();renderStaff();if($('#page-dashboard').classList.contains('active'))renderDashboard();}
 
-window.onload=async function(){await load();enhanceState();setupEnhancedUI();initNav();initRole();['repair','complaint','help'].forEach(initFilters);initSchedule();renderAll();renderDashboard();applyRoleView();$('#drawerClose').onclick=closeDrawer;$('#drawerMask').onclick=closeDrawer;startAutoSync();};
+function renderDone(){
+  var tbody=$('#tbody-done');if(!tbody)return;
+  var rows=state.tickets.filter(t=>t.status==='done');
+  var ft=$('#filter-type-done').value;
+  if(ft)rows=rows.filter(t=>t.type===ft);
+  var fc=$('#filter-cat-done').value;
+  if(fc)rows=rows.filter(t=>t.cat===fc);
+  rows.sort((a,b)=>new Date(b.finished||b.created)-new Date(a.finished||a.created));
+  $('#count-done').textContent='共 '+rows.length+' 张已完成';
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="8" class="empty">暂无已完成工单</td></tr>';return;}
+  tbody.innerHTML=rows.map(t=>`<tr onclick="openDrawer('${t.id}')" style="cursor:pointer"><td class="mono">${esc(t.id)}</td><td>${esc(typeLabel(t))}</td><td><span class="tag cat">${esc(t.cat)}</span></td><td>${esc(t.loc)}</td><td>${t.worker?avatar(t.worker,staffColor(t.worker))+esc(t.worker):'—'}</td><td class="mono">${fmtTime(t.created)}</td><td class="mono">${fmtTime(t.finished)}</td><td>${durHours(t.created,t.finished)?durHours(t.created,t.finished)+'h':'—'}</td></tr>`).join('');
+}
+function initDoneFilters(){
+  var catSel=$('#filter-cat-done');
+  var allCats=[...new Set(state.tickets.filter(t=>t.status==='done').map(t=>t.cat))].sort();
+  catSel.innerHTML='<option value="">全部类别</option>'+allCats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  $('#filter-type-done').onchange=function(){renderDone();};
+  $('#filter-cat-done').onchange=function(){renderDone();};
+}
+
+window.onload=async function(){await load();enhanceState();setupEnhancedUI();initNav();initRole();['repair','complaint','help'].forEach(initFilters);initDoneFilters();initSchedule();renderAll();renderDashboard();applyRoleView();$('#drawerClose').onclick=closeDrawer;$('#drawerMask').onclick=closeDrawer;startAutoSync();};
 
 function startAutoSync(){setInterval(async function(){try{var resp=await fetch(API_BASE+'/api/tickets');var json=await resp.json();if(json.data&&json.data.length){state.tickets=json.data.filter(t=>t.id&&t.type);state.tickets.forEach(t=>{t.priority=t.priority||inferPriority(t);t.rejectHistory=t.rejectHistory||[];t.steps=t.steps||[];t.photos=t.photos||[];t.aggregated=t.aggregated||[];});saveLocal();renderAll();if($('#page-dashboard').classList.contains('active'))renderDashboard();}}catch(e){}},10000);}
 
@@ -960,41 +980,27 @@ function initSchedule() {
   var sel = $('#schedule-worker');
   sel.innerHTML = '<option value="">全部人员</option>' + state.staff.map(s => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('');
   sel.onchange = renderSchedule;
-  $('#schedule-range').onchange = renderSchedule;
+  var dateInput = $('#schedule-date');
+  dateInput.value = new Date().toISOString().slice(0,10);
+  dateInput.onchange = renderSchedule;
 }
 
 function renderSchedule() {
   var worker = $('#schedule-worker').value;
-  var range = $('#schedule-range').value;
-  var now = new Date(), startOfDay = new Date(now); startOfDay.setHours(0,0,0,0);
-  var rangeStart, rangeEnd, dayList = [];
-
-  if (range === 'today') {
-    rangeStart = new Date(startOfDay); rangeEnd = new Date(startOfDay); rangeEnd.setDate(rangeEnd.getDate() + 1);
-    dayList = [new Date(startOfDay)];
-  } else if (range === 'week') {
-    var dow = now.getDay() || 7;
-    rangeStart = new Date(startOfDay); rangeStart.setDate(rangeStart.getDate() - dow + 1);
-    rangeEnd = new Date(rangeStart); rangeEnd.setDate(rangeEnd.getDate() + 7);
-    for (var i = 0; i < 7; i++) { var d = new Date(rangeStart); d.setDate(d.getDate() + i); dayList.push(d); }
-  } else {
-    rangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    rangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    var cnt = (rangeEnd - rangeStart) / 86400000;
-    for (var i = 0; i < cnt; i++) { var d = new Date(rangeStart); d.setDate(d.getDate() + i); dayList.push(d); }
-  }
+  var dateStr = $('#schedule-date').value;
+  var day = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+  day.setHours(0,0,0,0);
 
   var tickets = state.tickets.filter(t => {
     if (!t.worker) return false;
     if (worker && t.worker !== worker) return false;
     var cr = new Date(t.created);
-    return cr >= rangeStart && cr < rangeEnd;
+    return sameDay(cr, day);
   });
 
   var people = worker ? [worker] : [...new Set(tickets.map(t => t.worker))];
   if (!people.length) people = state.staff.filter(s => s.role === '维修工' || s.role === '物业管家').map(s => s.name);
 
-  // 计算时间块
   var blocks = tickets.map(t => {
     var start = new Date(t.created);
     var hrs = estimateDuration(t);
@@ -1003,41 +1009,18 @@ function renderSchedule() {
   });
 
   var grid = $('#schedule-grid');
-  var HOUR_START = 7, HOUR_END = 22, TOTAL_HOURS = HOUR_END - HOUR_START;
+  var HOUR_START = 7, HOUR_END = 22;
+  grid.innerHTML = renderTimelineDay(people, blocks, day, HOUR_START, HOUR_END) || '<span style="color:#aaa">当天暂无已指派工单</span>';
 
-  if (range === 'today') {
-    // 今天：左侧人员行，列跨时间轴
-    grid.innerHTML = renderTimelineDay(people, blocks, dayList[0], HOUR_START, HOUR_END);
-  } else if (range === 'week') {
-    // 周视图：每天一个时间轴面板
-    grid.innerHTML = dayList.map(day => {
-      var label = formatDayLabel(day);
-      var dayBlocks = blocks.filter(b => sameDay(b.start, day));
-      if (!dayBlocks.length && people.length > 3) return '';
-      return `<div style="margin-bottom:18px"><div style="font-weight:600;font-size:13px;margin-bottom:6px">${esc(label)}</div>${renderTimelineDay(people, dayBlocks, day, HOUR_START, HOUR_END)}</div>`;
-    }).join('') || '<span style="color:#aaa">本周暂无已指派工单</span>';
-  } else {
-    // 月视图：简化为每天统计条
-    grid.innerHTML = `<div class="month-timeline">${dayList.map(day => {
-      var label = (day.getMonth()+1)+'/'+day.getDate();
-      var dayBlocks = blocks.filter(b => sameDay(b.start, day));
-      var conf = countDayConflicts(dayBlocks);
-      return `<div class="month-day${conf?' conflict':''}"><div class="md-label">${label}</div><div class="md-bar">${dayBlocks.length} 单${conf?` · <span style="color:#cf1322">${conf}冲突</span>`:''}</div></div>`;
-    }).join('')}</div>`;
-  }
-
-  // 冲突检测
   var conflicts = detectTimeConflicts(blocks);
   var conflictEl = $('#schedule-conflicts');
   if (conflicts.length) {
     conflictEl.innerHTML = conflicts.map(c => `<div class="conflict-alert">⚠️ <b>${esc(c.worker)}</b>：${esc(c.t1.ticket.id)}（${fmtHM(c.t1.start)}~${fmtHM(c.t1.end)}）与 ${esc(c.t2.ticket.id)}（${fmtHM(c.t2.start)}~${fmtHM(c.t2.end)}）时段重叠 ${c.overlap.toFixed(1)}h</div>`).join('');
   } else {
-    conflictEl.innerHTML = '<span style="color:#389e0d">✓ 当前无时段重叠冲突</span>';
+    conflictEl.innerHTML = '<span style="color:#389e0d">✓ 当天无时段重叠冲突</span>';
   }
 
-  // 摘要
-  var avgAll = people.map(p => { var a = workerAvgHours(p); return a ? a.toFixed(1) + 'h' : '无数据'; });
-  $('#schedule-summary').textContent = `共 ${tickets.length} 条工单 · ${people.length} 名人员`;
+  $('#schedule-summary').textContent = `${formatDayLabel(day)} · 共 ${tickets.length} 条工单 · ${people.length} 名人员`;
 }
 
 function renderTimelineDay(people, blocks, day, hStart, hEnd) {

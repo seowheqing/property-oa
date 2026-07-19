@@ -16,6 +16,7 @@
       <button data-page="repair">🔧 报修工单</button>
       <button data-page="complaint">📣 投诉工单</button>
       <button data-page="help">🙋 帮助/其他</button>
+      <button data-page="done">✅ 已完成</button>
       <button data-page="schedule">📅 师傅日程</button>
       <button data-page="admin">⚙️ 管理平台</button>
     </nav>
@@ -109,6 +110,26 @@
       </div>
     </section>
 
+    <!-- ============ 已完成工单 ============ -->
+    <section class="page" id="page-done">
+      <div class="page-title">已完成工单</div>
+      <div class="page-sub">全部已处理完毕的工单归档</div>
+      <div class="card">
+        <div class="toolbar">
+          <select id="filter-type-done"><option value="">全部类型</option><option value="repair">报修</option><option value="complaint">投诉</option><option value="help">帮助/其他</option></select>
+          <select id="filter-cat-done"></select>
+          <span class="spacer"></span>
+          <span class="count" id="count-done"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>工单号</th><th>类型</th><th>类别</th><th>位置</th><th>负责人</th><th>创建时间</th><th>完成时间</th><th>处理时长</th></tr></thead>
+            <tbody id="tbody-done"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- ============ 师傅日程 ============ -->
     <section class="page" id="page-schedule">
       <div class="page-title">师傅日程 · 排班与冲突检测</div>
@@ -116,7 +137,7 @@
       <div class="card">
         <div class="toolbar">
           <select id="schedule-worker"><option value="">全部人员</option></select>
-          <select id="schedule-range"><option value="today">今天</option><option value="week" selected>本周</option><option value="month">本月</option></select>
+          <input type="date" id="schedule-date" style="padding:6px 10px;border:1px solid #e6eaf0;border-radius:8px" />
           <span class="spacer"></span>
           <span class="count" id="schedule-summary"></span>
         </div>
