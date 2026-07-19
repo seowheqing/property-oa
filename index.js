@@ -408,7 +408,7 @@ async function sendJzmMessage(roomId, text, mentionContactId) {
 function getWaitingTicketsReminder() {
   const waitTickets = queryAll("SELECT * FROM tickets WHERE status = 'wait'");
   if (!waitTickets.length) return null;
-  return `@主管 当前还有 ${waitTickets.length} 张工单待派单，请尽快处理。`;
+  return `当前还有 ${waitTickets.length} 张工单待派单，请尽快处理。`;
 }
 
 function estimateNextAvailable() {
