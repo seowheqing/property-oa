@@ -932,6 +932,10 @@ function renderAll(){['repair','complaint','help'].forEach(renderTickets);render
 function renderDone(){
   var tbody=$('#tbody-done');if(!tbody)return;
   var rows=state.tickets.filter(t=>t.status==='done');
+  // 师傅/管家视图：只看自己已完成的工单
+  var myName=roleWorkerName();
+  if(currentRole.startsWith('worker_')&&myName) rows=rows.filter(t=>t.worker===myName);
+  if(currentRole.startsWith('pm_keeper_')){var keeperName=currentRole.replace('pm_keeper_','');rows=rows.filter(t=>t.worker===keeperName);}
   var ft=$('#filter-type-done').value;
   if(ft)rows=rows.filter(t=>t.type===ft);
   var fc=$('#filter-cat-done').value;
