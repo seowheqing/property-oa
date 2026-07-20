@@ -364,7 +364,7 @@ app.post('/api/jzm/token', async (req, res) => {
 
 // ============ 定时任务：待派单提醒 & 预估接单时间 ============
 const ALERT_SESSION_ID = process.env.JZMM_ALERT_SESSION_ID || JZMM_SESSION_ID;
-let reminderInterval = 5 * 60 * 1000; // 默认5分钟
+let reminderInterval = 0; // 默认关闭推送
 let reminderTimer = null;
 
 // 句子秒懂直接发消息 API 配置
