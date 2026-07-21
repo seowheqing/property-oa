@@ -1192,6 +1192,8 @@ function enterApp(user){
   var sel=$('#roleSelect');
   if(sel&&sel.querySelector('option[value="'+currentRole+'"]'))sel.value=currentRole;
   applyRoleView();
+  // 图表在display:none时初始化尺寸不对，显示后强制resize
+  setTimeout(function(){ Object.values(charts).forEach(function(c){c.resize();}); renderDashboard(); }, 100);
 }
 function checkLogin(){
   var saved=localStorage.getItem('login_user');
