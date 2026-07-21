@@ -292,7 +292,6 @@
   function enterApp(user){
     $('#login-page').style.display='none';
     $('#app-main').style.display='block';
-    // 根据用户角色自动设置currentRole
     if(user.role==='admin'||user.role==='lead'){
       currentRole='eng_lead';
     } else if(user.role==='worker'){
@@ -315,9 +314,6 @@
     $('#login-page').style.display='flex';
     $('#login-phone').value='';$('#login-password').value='';$('#login-error').textContent='';
   }
-  // 页面加载后检查是否已登录
-  var _origOnload=window.onload;
-  window.onload=async function(){await _origOnload();checkLogin();};
   </script>
 </body>
 </html>

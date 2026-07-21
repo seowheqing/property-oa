@@ -1009,7 +1009,7 @@ function copyReport(){
   });
 }
 
-window.onload=async function(){await load();enhanceState();setupEnhancedUI();initNav();initRole();['repair','complaint','help'].forEach(initFilters);initDoneFilters();initSchedule();loadReminderInterval();renderAll();renderDashboard();applyRoleView();$('#drawerClose').onclick=closeDrawer;$('#drawerMask').onclick=closeDrawer;startAutoSync();};
+window.onload=async function(){await load();enhanceState();setupEnhancedUI();initNav();initRole();['repair','complaint','help'].forEach(initFilters);initDoneFilters();initSchedule();loadReminderInterval();renderAll();renderDashboard();applyRoleView();$('#drawerClose').onclick=closeDrawer;$('#drawerMask').onclick=closeDrawer;startAutoSync();checkLogin();};
 
 function startAutoSync(){setInterval(async function(){try{var resp=await fetch(API_BASE+'/api/tickets');var json=await resp.json();if(json.data&&json.data.length){state.tickets=json.data.filter(t=>t.id&&t.type);state.tickets.forEach(t=>{t.priority=t.priority||inferPriority(t);t.rejectHistory=t.rejectHistory||[];t.steps=t.steps||[];t.photos=t.photos||[];t.aggregated=t.aggregated||[];});saveLocal();renderAll();if($('#page-dashboard').classList.contains('active'))renderDashboard();}}catch(e){}},10000);}
 
