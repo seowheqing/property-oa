@@ -1111,13 +1111,17 @@ function renderTimelineDay(people, blocks, day, hStart, hEnd) {
   ruler += '</div>';
 
   var rows = people.map(p => {
-    var pBlocks = blocks.filter(b => b.worker === p && sameDay(b.start, day));
+    var pBlocks = blocks.filter(b => b.worker === p);
     var items = pBlocks.map(b => {
-      var startH = b.start.getHours() + b.start.getMinutes() / 60;
+      // 跨天工单：如果start不在当天，从当天7:00开始显示
+      var displayStart = sameDay(b.start, day) ? b.start : new Date(day.getFullYear(), day.getMonth(), day.getDate(), hStart, 0);
+      var displayEnd = b.end > new Date(day.getFullYear(), day.getMonth(), day.getDate(), hEnd, 0) ? new Date(day.getFullYear(), day.getMonth(), day.getDate(), hEnd, 0) : b.end;
+      var startH = displayStart.getHours() + displayStart.getMinutes() / 60;
+      var durH = (displayEnd - displayStart) / 3600000;
       var left = Math.max(0, ((startH - hStart) / totalH) * 100);
-      var width = Math.min(100 - left, (b.hours / totalH) * 100);
+      var width = Math.min(100 - left, (durH / totalH) * 100);
       var isConflict = pBlocks.some(o => o !== b && o.start < b.end && o.end > b.start);
-      return `<div class="tl-block ${b.ticket.priority||'normal'}${isConflict?' conflict':''}" style="left:${left.toFixed(2)}%;width:${Math.max(2,width).toFixed(2)}%" onclick="openDrawer('${b.ticket.id}')" title="${esc(b.ticket.id)} ${esc(b.ticket.cat)}\n${fmtHM(b.start)}~${fmtHM(b.end)} (预估${b.hours.toFixed(1)}h)\n${esc(b.ticket.loc)}"><span class="tl-block-text">${esc(b.ticket.id)} ${esc(b.ticket.cat)}</span></div>`;
+      return `<div class="tl-block ${b.ticket.priority||'normal'}${isConflict?' conflict':''}" style="left:${left.toFixed(2)}%;width:${Math.max(2,width).toFixed(2)}%" onclick="openDrawer('${b.ticket.id}')" title="${esc(b.ticket.id)} ${esc(b.ticket.cat)}\n${fmtHM(b.start)}~${fmtHM(b.end)} (${b.hours.toFixed(1)}h)\n${esc(b.ticket.loc)}${sameDay(b.start,day)?'':'\n⚠️ 跨天工单'}"><span class="tl-block-text">${esc(b.ticket.id)} ${esc(b.ticket.cat)}</span></div>`;
     }).join('');
     var avgH = workerAvgHours(p);
     return `<div class="tl-row"><div class="tl-name-col"><b>${esc(p)}</b><br><small style="color:var(--text-3)">均${avgH!=null?avgH.toFixed(1)+'h/单':'无数据'}</small></div><div class="tl-track">${items||''}</div></div>`;
