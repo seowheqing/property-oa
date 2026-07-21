@@ -147,6 +147,17 @@ async function initDB() {
     // 列已存在，忽略
   }
 
+  // 用户表（登录用）
+  db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      phone TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'worker'
+    )
+  `);
+
   saveDB();
 }
 
@@ -194,6 +205,44 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ============ 登录接口 ============
+// POST /api/login — 手机号+密码登录
+app.post('/api/login', (req, res) => {
+  const { phone, password } = req.body;
+  if (!phone || !password) return res.status(400).json({ error: '请输入手机号和密码' });
+  const user = queryOne('SELECT * FROM users WHERE phone = ?', [phone]);
+  if (!user) return res.status(401).json({ error: '手机号未注册' });
+  if (user.password !== password) return res.status(401).json({ error: '密码错误' });
+  res.json({ success: true, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
+});
+
+// POST /api/users — 创建用户（主管在管理平台添加）
+app.post('/api/users', (req, res) => {
+  const { phone, password, name, role } = req.body;
+  if (!phone || !password || !name) return res.status(400).json({ error: '手机号、密码、姓名必填' });
+  try {
+    db.run('INSERT INTO users (phone, password, name, role) VALUES (?, ?, ?, ?)', [phone, password, name, role || 'worker']);
+    saveDB();
+    res.json({ success: true });
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) return res.status(400).json({ error: '该手机号已注册' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/users — 获取所有用户
+app.get('/api/users', (req, res) => {
+  const users = queryAll('SELECT id, phone, name, role FROM users');
+  res.json({ data: users });
+});
+
+// DELETE /api/users/:id — 删除用户
+app.delete('/api/users/:id', (req, res) => {
+  db.run('DELETE FROM users WHERE id = ?', [req.params.id]);
+  saveDB();
+  res.json({ success: true });
+});
 
 // GET /api/tickets
 app.get('/api/tickets', (req, res) => {
