@@ -961,9 +961,21 @@ function saveReminderInterval(){
     setTimeout(()=>$('#reminder-status').textContent='',3000);
   }).catch(()=>{$('#reminder-status').textContent='保存失败';});
 }
+function saveSlaInterval(){
+  var sel=$('#sla-interval');
+  var minutes=parseInt(sel.value);
+  fetch(API_BASE+'/api/settings/sla',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intervalMinutes:minutes})}).then(r=>r.json()).then(d=>{
+    $('#sla-status').textContent='✓ '+d.message;
+    setTimeout(()=>$('#sla-status').textContent='',3000);
+  }).catch(()=>{$('#sla-status').textContent='保存失败';});
+}
 function loadReminderInterval(){
   fetch(API_BASE+'/api/settings/reminder').then(r=>r.json()).then(d=>{
     var sel=$('#reminder-interval');
+    if(sel)sel.value=String(d.intervalMinutes);
+  }).catch(()=>{});
+  fetch(API_BASE+'/api/settings/sla').then(r=>r.json()).then(d=>{
+    var sel=$('#sla-interval');
     if(sel)sel.value=String(d.intervalMinutes);
   }).catch(()=>{});
 }

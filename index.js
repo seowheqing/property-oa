@@ -492,6 +492,39 @@ app.post('/api/settings/reminder', (req, res) => {
 
 // ============ 超时告警 ============
 const SLA_THRESHOLDS = { urgent: 2, high: 8, normal: 24, low: 48 }; // 小时
+let slaInterval = 0; // 默认关闭
+let slaTimer = null;
+
+function startSlaAlerts() {
+  if (slaTimer) clearInterval(slaTimer);
+  if (slaInterval <= 0) { console.log('[超时告警] 已关闭'); return; }
+  slaTimer = setInterval(async () => {
+    try {
+      const overdue = checkSlaOverdue();
+      if (overdue.length) {
+        const lines = overdue.map(t => `• ${t.id}｜${t.cat}｜${t.loc}｜超时 ${t.hoursOverdue}h（SLA ${t.threshold}h）｜${t.worker || '未派单'}`);
+        const msg = `⚠️ SLA 超时告警\n以下 ${overdue.length} 张工单已超出处理时限：\n\n${lines.join('\n')}\n\n请尽快处理！`;
+        await triggerJzmWorkflowEvent(ALERT_SESSION_ID, msg).catch(e => console.error('[超时告警] 推送失败:', e.message));
+        console.log('[超时告警] 已推送，共', overdue.length, '张超时');
+      }
+    } catch (e) { console.error('[超时告警] 错误:', e.message); }
+  }, slaInterval);
+  console.log(`[超时告警] 已启动，每 ${slaInterval/60000} 分钟检查`);
+}
+
+// GET /api/settings/sla
+app.get('/api/settings/sla', (req, res) => {
+  res.json({ intervalMinutes: slaInterval / 60000 });
+});
+
+// POST /api/settings/sla — 设置超时告警间隔
+app.post('/api/settings/sla', (req, res) => {
+  const { intervalMinutes } = req.body;
+  if (intervalMinutes === undefined) return res.status(400).json({ error: '缺少 intervalMinutes' });
+  slaInterval = Math.max(0, Number(intervalMinutes)) * 60000;
+  startSlaAlerts();
+  res.json({ success: true, intervalMinutes: slaInterval / 60000, message: slaInterval > 0 ? `已设置为每 ${slaInterval/60000} 分钟检查超时` : '已关闭超时告警' });
+});
 
 function checkSlaOverdue() {
   const now = Date.now();
@@ -622,5 +655,6 @@ initDB().then(() => {
     else console.log('通知回调：未配置 NOTIFY_WEBHOOK');
     // 启动定时提醒
     startReminders();
+    startSlaAlerts();
   });
 });
