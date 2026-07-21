@@ -94,6 +94,9 @@ node seed-test.js
 | GET | `/api/reminder/trigger` | 手动触发待派单提醒 |
 | GET | `/api/settings/reminder` | 获取推送间隔 |
 | POST | `/api/settings/reminder` | 修改推送间隔 |
+| GET | `/api/sla/overdue` | 获取超时工单列表 |
+| GET | `/api/sla/alert` | 触发超时告警推送到预警群 |
+| GET | `/api/report?from=&to=` | 生成工单报告（月报） |
 | POST | `/api/jzm/trigger-event` | 触发秒懂流程事件 |
 
 ### 创建工单示例

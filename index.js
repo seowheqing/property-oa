@@ -490,6 +490,127 @@ app.post('/api/settings/reminder', (req, res) => {
   res.json({ success: true, intervalMinutes: reminderInterval / 60000, message: reminderInterval > 0 ? `已设置为每 ${reminderInterval/60000} 分钟推送` : '已关闭推送' });
 });
 
+// ============ 超时告警 ============
+const SLA_THRESHOLDS = { urgent: 2, high: 8, normal: 24, low: 48 }; // 小时
+
+function checkSlaOverdue() {
+  const now = Date.now();
+  const active = queryAll("SELECT * FROM tickets WHERE status IN ('wait','doing','confirm')");
+  const overdue = [];
+  for (const row of active) {
+    const t = rowToTicket(row);
+    const hours = (now - new Date(t.created).getTime()) / 3600000;
+    const threshold = SLA_THRESHOLDS[t.priority] || 24;
+    if (hours > threshold) {
+      overdue.push({ ...t, hoursOverdue: +(hours - threshold).toFixed(1), threshold });
+    }
+  }
+  return overdue;
+}
+
+// GET /api/sla/overdue — 获取超时工单列表
+app.get('/api/sla/overdue', (req, res) => {
+  res.json({ data: checkSlaOverdue() });
+});
+
+// GET /api/sla/alert — 触发超时告警推送到预警群
+app.get('/api/sla/alert', async (req, res) => {
+  const overdue = checkSlaOverdue();
+  if (!overdue.length) return res.json({ success: true, message: '当前无超时工单' });
+  const lines = overdue.map(t => `• ${t.id}｜${t.cat}｜${t.loc}｜超时 ${t.hoursOverdue}h（SLA ${t.threshold}h）｜${t.worker || '未派单'}`);
+  const msg = `⚠️ SLA 超时告警\n以下 ${overdue.length} 张工单已超出处理时限：\n\n${lines.join('\n')}\n\n请尽快处理！`;
+  try {
+    await triggerJzmWorkflowEvent(ALERT_SESSION_ID, msg);
+    res.json({ success: true, message: '已推送超时告警', count: overdue.length });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ============ 月报生成 ============
+app.get('/api/report', (req, res) => {
+  const from = req.query.from || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const to = req.query.to || new Date().toISOString();
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  const all = queryAll("SELECT * FROM tickets").map(rowToTicket);
+  const inRange = all.filter(t => new Date(t.created) >= fromDate && new Date(t.created) <= toDate);
+
+  const repairs = inRange.filter(t => t.type === 'repair');
+  const complaints = inRange.filter(t => t.type === 'complaint');
+  const helps = inRange.filter(t => t.type === 'help');
+  const done = inRange.filter(t => t.status === 'done' && t.finished);
+  const doing = inRange.filter(t => t.status === 'doing');
+  const wait = inRange.filter(t => t.status === 'wait');
+
+  // 平均处理时长
+  const durations = done.map(t => (new Date(t.finished) - new Date(t.created)) / 3600000).filter(h => h > 0);
+  const avgHours = durations.length ? +(durations.reduce((a, b) => a + b, 0) / durations.length).toFixed(1) : 0;
+
+  // 按时完成率
+  const onTime = done.filter(t => {
+    const h = (new Date(t.finished) - new Date(t.created)) / 3600000;
+    return h <= (SLA_THRESHOLDS[t.priority] || 24);
+  });
+  const onTimeRate = done.length ? Math.round(onTime.length / done.length * 100) : 0;
+
+  // 高频事件
+  const catCount = {};
+  inRange.forEach(t => { catCount[t.cat] = (catCount[t.cat] || 0) + 1; });
+  const topEvents = Object.entries(catCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  // 高频位置
+  const locCount = {};
+  inRange.forEach(t => { if (t.loc) locCount[t.loc] = (locCount[t.loc] || 0) + 1; });
+  const topLocs = Object.entries(locCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  // 师傅效率
+  const workerStats = {};
+  done.forEach(t => {
+    if (!t.worker) return;
+    if (!workerStats[t.worker]) workerStats[t.worker] = { count: 0, totalH: 0 };
+    workerStats[t.worker].count++;
+    workerStats[t.worker].totalH += (new Date(t.finished) - new Date(t.created)) / 3600000;
+  });
+
+  const fromStr = `${fromDate.getFullYear()}/${fromDate.getMonth()+1}/${fromDate.getDate()}`;
+  const toStr = `${toDate.getFullYear()}/${toDate.getMonth()+1}/${toDate.getDate()}`;
+
+  // 未解决工单
+  const unresolved = inRange.filter(t => t.status !== 'done').sort((a, b) => new Date(a.created) - new Date(b.created)).slice(0, 5);
+
+  let report = `【小区工单报告 · ${fromStr} ~ ${toStr}】\n\n`;
+  report += `📊 总览\n`;
+  report += `新增工单：${inRange.length} 张（报修 ${repairs.length} / 投诉 ${complaints.length} / 帮助 ${helps.length}）\n`;
+  report += `已完成：${done.length} 张｜处理中：${doing.length} 张｜待派单：${wait.length} 张\n`;
+  report += `平均处理时长：${avgHours} 小时\n`;
+  report += `SLA 按时完成率：${onTimeRate}%\n\n`;
+
+  report += `🔥 高频事件 TOP ${topEvents.length}\n`;
+  topEvents.forEach(([cat, count], i) => { report += `${i+1}. ${cat}（${count} 次）\n`; });
+  report += `\n`;
+
+  report += `📍 高频位置 TOP ${topLocs.length}\n`;
+  topLocs.forEach(([loc, count], i) => { report += `${i+1}. ${loc}（${count} 次）\n`; });
+  report += `\n`;
+
+  report += `👷 师傅效率\n`;
+  Object.entries(workerStats).sort((a, b) => b[1].count - a[1].count).forEach(([name, s]) => {
+    report += `• ${name}：完成 ${s.count} 张，平均 ${(s.totalH / s.count).toFixed(1)}h\n`;
+  });
+  report += `\n`;
+
+  if (unresolved.length) {
+    report += `⚠️ 未解决（前5）\n`;
+    unresolved.forEach(t => {
+      const waitH = +((Date.now() - new Date(t.created).getTime()) / 3600000).toFixed(1);
+      report += `• ${t.id}｜${t.cat}｜${t.loc}｜${t.status === 'wait' ? '待派单' : '处理中'}｜已等 ${waitH}h\n`;
+    });
+  }
+
+  res.json({ success: true, from: fromStr, to: toStr, report, stats: { total: inRange.length, done: done.length, doing: doing.length, wait: wait.length, avgHours, onTimeRate } });
+});
+
 // ============ 启动 ============
 initDB().then(() => {
   app.listen(PORT, () => {

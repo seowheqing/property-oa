@@ -1023,7 +1023,20 @@ function renderSchedule() {
   var blocks = tickets.map(t => {
     var start = new Date(t.created);
     var hrs = estimateDuration(t);
-    var end = new Date(start.getTime() + hrs * 3600000);
+    var end;
+    if (t.status === 'done' && t.finished) {
+      // 已完成：用实际完成时间
+      end = new Date(t.finished);
+      hrs = (end - start) / 3600000;
+    } else if (t.status === 'doing' || t.status === 'confirm') {
+      // 处理中/待确认：实时拉长到当前时间（如果已超预估时长）
+      var estimated = new Date(start.getTime() + hrs * 3600000);
+      var now = new Date();
+      if (now > estimated) { end = now; hrs = (now - start) / 3600000; }
+      else { end = estimated; }
+    } else {
+      end = new Date(start.getTime() + hrs * 3600000);
+    }
     return { ticket: t, start, end, hours: hrs, worker: t.worker };
   });
 
