@@ -1051,11 +1051,18 @@ function renderSchedule() {
   var day = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
   day.setHours(0,0,0,0);
 
+  var dayEnd = new Date(day); dayEnd.setHours(23,59,59,999);
   var tickets = state.tickets.filter(t => {
     if (!t.worker) return false;
     if (worker && t.worker !== worker) return false;
     var cr = new Date(t.created);
-    return sameDay(cr, day);
+    // 当天创建的工单
+    if (sameDay(cr, day)) return true;
+    // 跨天工单：创建于之前但还在处理中，时间块延续到当天
+    if (t.status === 'doing' || t.status === 'confirm') {
+      if (cr < dayEnd) return true;
+    }
+    return false;
   });
 
   var people = worker ? [worker] : [...new Set(tickets.map(t => t.worker))];
