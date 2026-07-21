@@ -275,53 +275,5 @@
   <script src="echarts.min.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>
-  <script>
-  function doLogin(){
-    var phone=$('#login-phone').value.trim();
-    var pwd=$('#login-password').value;
-    if(!phone||!pwd){$('#login-error').textContent='请填写手机号和密码';return;}
-    fetch(API_BASE+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone,password:pwd})}).then(r=>r.json()).then(d=>{
-      if(d.success){
-        localStorage.setItem('login_user',JSON.stringify(d.user));
-        enterApp(d.user);
-      } else {
-        $('#login-error').textContent=d.error||'登录失败';
-      }
-    }).catch(()=>{$('#login-error').textContent='网络错误';});
-  }
-  function enterApp(user){
-    $('#login-page').style.display='none';
-    $('#app-main').style.display='block';
-    if(user.role==='admin'||user.role==='lead'){
-      currentRole='eng_lead';
-    } else if(user.role==='worker'){
-      currentRole='worker_'+user.name;
-    } else if(user.role==='keeper'){
-      currentRole='pm_keeper_'+user.name;
-    }
-    localStorage.setItem('juzi_oa_role_v1',currentRole);
-    var sel=$('#roleSelect');
-    if(sel&&sel.querySelector('option[value="'+currentRole+'"]'))sel.value=currentRole;
-    applyRoleView();
-  }
-  function checkLogin(){
-    var saved=localStorage.getItem('login_user');
-    if(saved){
-      try{enterApp(JSON.parse(saved));}catch(e){showLoginPage();}
-    } else {
-      showLoginPage();
-    }
-  }
-  function showLoginPage(){
-    $('#app-main').style.display='none';
-    $('#login-page').style.display='flex';
-  }
-  function doLogout(){
-    localStorage.removeItem('login_user');
-    $('#app-main').style.display='none';
-    $('#login-page').style.display='flex';
-    $('#login-phone').value='';$('#login-password').value='';$('#login-error').textContent='';
-  }
-  </script>
 </body>
 </html>
