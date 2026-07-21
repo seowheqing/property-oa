@@ -9,7 +9,7 @@
 <body>
 
   <!-- ============ 登录页 ============ -->
-  <div id="login-page" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)">
+  <div id="login-page" style="display:none;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)">
     <div style="background:var(--card);border-radius:16px;padding:36px;width:360px;max-width:90vw;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid var(--border)">
       <h2 style="text-align:center;margin-bottom:6px">🏠 智慧物业 OA</h2>
       <p style="text-align:center;color:var(--text-2);font-size:13px;margin-bottom:24px">工单协同管理系统</p>
@@ -27,7 +27,7 @@
   </div>
 
   <!-- ============ 主系统（登录后显示） ============ -->
-  <div id="app-main" style="display:none">
+  <div id="app-main">
 
   <!-- ============ 顶部导航 + 角色切换 ============ -->
   <div class="topbar">
@@ -306,7 +306,15 @@
   }
   function checkLogin(){
     var saved=localStorage.getItem('login_user');
-    if(saved){try{enterApp(JSON.parse(saved));}catch(e){}}
+    if(saved){
+      try{enterApp(JSON.parse(saved));}catch(e){showLoginPage();}
+    } else {
+      showLoginPage();
+    }
+  }
+  function showLoginPage(){
+    $('#app-main').style.display='none';
+    $('#login-page').style.display='flex';
   }
   function doLogout(){
     localStorage.removeItem('login_user');
