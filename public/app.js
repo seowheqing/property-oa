@@ -1112,19 +1112,34 @@ function renderTimelineDay(people, blocks, day, hStart, hEnd) {
 
   var rows = people.map(p => {
     var pBlocks = blocks.filter(b => b.worker === p);
+    // 计算每个block的层级（冲突时错开显示）
+    var lanes = [];
+    pBlocks.forEach(b => {
+      b._displayStart = sameDay(b.start, day) ? b.start : new Date(day.getFullYear(), day.getMonth(), day.getDate(), hStart, 0);
+      b._displayEnd = b.end > new Date(day.getFullYear(), day.getMonth(), day.getDate(), hEnd, 0) ? new Date(day.getFullYear(), day.getMonth(), day.getDate(), hEnd, 0) : b.end;
+      var lane = 0;
+      for (var l = 0; l < lanes.length; l++) {
+        if (lanes[l] <= b._displayStart.getTime()) { lane = l; break; }
+        lane = l + 1;
+      }
+      lanes[lane] = b._displayEnd.getTime();
+      b._lane = lane;
+    });
+    var maxLanes = Math.max(1, lanes.length);
+    var rowH = Math.max(48, maxLanes * 36 + 8);
+    var blockH = Math.min(32, Math.floor((rowH - 8) / maxLanes) - 2);
+
     var items = pBlocks.map(b => {
-      // 跨天工单：如果start不在当天，从当天7:00开始显示
-      var displayStart = sameDay(b.start, day) ? b.start : new Date(day.getFullYear(), day.getMonth(), day.getDate(), hStart, 0);
-      var displayEnd = b.end > new Date(day.getFullYear(), day.getMonth(), day.getDate(), hEnd, 0) ? new Date(day.getFullYear(), day.getMonth(), day.getDate(), hEnd, 0) : b.end;
-      var startH = displayStart.getHours() + displayStart.getMinutes() / 60;
-      var durH = (displayEnd - displayStart) / 3600000;
+      var startH = b._displayStart.getHours() + b._displayStart.getMinutes() / 60;
+      var durH = (b._displayEnd - b._displayStart) / 3600000;
       var left = Math.max(0, ((startH - hStart) / totalH) * 100);
       var width = Math.min(100 - left, (durH / totalH) * 100);
+      var top = 4 + b._lane * (blockH + 2);
       var isConflict = pBlocks.some(o => o !== b && o.start < b.end && o.end > b.start);
-      return `<div class="tl-block ${b.ticket.priority||'normal'}${isConflict?' conflict':''}" style="left:${left.toFixed(2)}%;width:${Math.max(2,width).toFixed(2)}%" onclick="openDrawer('${b.ticket.id}')" title="${esc(b.ticket.id)} ${esc(b.ticket.cat)}\n${fmtHM(b.start)}~${fmtHM(b.end)} (${b.hours.toFixed(1)}h)\n${esc(b.ticket.loc)}${sameDay(b.start,day)?'':'\n⚠️ 跨天工单'}"><span class="tl-block-text">${esc(b.ticket.id)} ${esc(b.ticket.cat)}</span></div>`;
+      return `<div class="tl-block ${b.ticket.priority||'normal'}${isConflict?' conflict':''}" style="left:${left.toFixed(2)}%;width:${Math.max(2,width).toFixed(2)}%;top:${top}px;height:${blockH}px" onclick="openDrawer('${b.ticket.id}')" title="${esc(b.ticket.id)} ${esc(b.ticket.cat)}\n${fmtHM(b.start)}~${fmtHM(b.end)} (${b.hours.toFixed(1)}h)\n${esc(b.ticket.loc)}${sameDay(b.start,day)?'':'\n⚠️ 跨天工单'}"><span class="tl-block-text">${esc(b.ticket.id)} ${esc(b.ticket.cat)}</span></div>`;
     }).join('');
     var avgH = workerAvgHours(p);
-    return `<div class="tl-row"><div class="tl-name-col"><b>${esc(p)}</b><br><small style="color:var(--text-3)">均${avgH!=null?avgH.toFixed(1)+'h/单':'无数据'}</small></div><div class="tl-track">${items||''}</div></div>`;
+    return `<div class="tl-row" style="min-height:${rowH}px"><div class="tl-name-col"><b>${esc(p)}</b><br><small style="color:var(--text-3)">均${avgH!=null?avgH.toFixed(1)+'h/单':'无数据'}</small></div><div class="tl-track">${items||''}</div></div>`;
   }).join('');
 
   return `<div class="timeline-chart">${ruler}${rows}</div>`;
