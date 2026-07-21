@@ -968,6 +968,35 @@ function loadReminderInterval(){
   }).catch(()=>{});
 }
 
+function showReport(){
+  // 默认当月
+  var now=new Date();
+  var from=new Date(now.getFullYear(),now.getMonth(),1).toISOString().slice(0,10);
+  var to=now.toISOString().slice(0,10);
+  fetch(API_BASE+'/api/report?from='+from+'&to='+to).then(r=>r.json()).then(d=>{
+    if(!d.success){toast('生成报告失败');return;}
+    // 用抽屉展示报告
+    $('#drawer-title').textContent='📋 工单报告';
+    $('#drawer-sub').textContent=d.from+' ~ '+d.to;
+    $('#drawer-body').innerHTML=`
+      <div class="drawer-section">
+        <pre style="white-space:pre-wrap;font-size:13px;line-height:1.8;font-family:inherit">${d.report.replace(/</g,'&lt;')}</pre>
+      </div>
+      <div class="drawer-section">
+        <button class="btn" onclick="copyReport()">📋 一键复制报告</button>
+      </div>`;
+    $('#drawerMask').classList.add('open');$('#drawer').classList.add('open');
+    window._lastReport=d.report;
+  }).catch(()=>{toast('网络错误');});
+}
+function copyReport(){
+  if(!window._lastReport)return;
+  navigator.clipboard.writeText(window._lastReport).then(()=>toast('已复制到剪贴板')).catch(()=>{
+    // fallback
+    var ta=document.createElement('textarea');ta.value=window._lastReport;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('已复制');
+  });
+}
+
 window.onload=async function(){await load();enhanceState();setupEnhancedUI();initNav();initRole();['repair','complaint','help'].forEach(initFilters);initDoneFilters();initSchedule();loadReminderInterval();renderAll();renderDashboard();applyRoleView();$('#drawerClose').onclick=closeDrawer;$('#drawerMask').onclick=closeDrawer;startAutoSync();};
 
 function startAutoSync(){setInterval(async function(){try{var resp=await fetch(API_BASE+'/api/tickets');var json=await resp.json();if(json.data&&json.data.length){state.tickets=json.data.filter(t=>t.id&&t.type);state.tickets.forEach(t=>{t.priority=t.priority||inferPriority(t);t.rejectHistory=t.rejectHistory||[];t.steps=t.steps||[];t.photos=t.photos||[];t.aggregated=t.aggregated||[];});saveLocal();renderAll();if($('#page-dashboard').classList.contains('active'))renderDashboard();}}catch(e){}},10000);}
