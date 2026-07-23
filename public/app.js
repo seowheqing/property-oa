@@ -682,11 +682,13 @@ function getSelectedSkills() {
 function saveStaff() {
   const name = $('#f-name').value.trim();
   if (!name) { toast('请填写姓名'); return; }
+  const phone = $('#f-phone').value.trim();
+  const password = $('#f-password').value;
   const data = {
     name,
     role: $('#f-role').value,
     skill: getSelectedSkills(),
-    phone: $('#f-phone').value.trim() || '—',
+    phone: phone || '—',
     status: $('#f-status').value,
     done: parseInt($('#f-done').value) || 0,
   };
@@ -697,6 +699,18 @@ function saveStaff() {
     data.id = 's' + Date.now();
     state.staff.push(data);
     toast('已新增人员');
+  }
+  // 同步创建/更新登录账号
+  if (phone && password) {
+    var userRole = data.role === '维修工' ? 'worker' : data.role === '物业管家' ? 'keeper' : 'worker';
+    fetch(API_BASE + '/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: phone, password: password, name: name, role: userRole })
+    }).then(r => r.json()).then(d => {
+      if (d.success) toast('登录账号已创建');
+      else if (d.error && d.error.includes('已注册')) { /* 已有账号，忽略 */ }
+    }).catch(() => {});
   }
   save(); renderStaff(); closeStaffModal();
 }
