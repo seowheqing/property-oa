@@ -744,6 +744,7 @@ function saveStaff() {
   }
   // 同步创建/更新登录账号
   if (phone && password) {
+    if (!/^1[3-9]\d{9}$/.test(phone)) { toast('手机号格式不正确（需为中国内地11位）'); return; }
     var userRole = data.role === '维修工' ? 'worker' : data.role === '物业管家' ? 'keeper' : 'worker';
     fetch(API_BASE + '/api/users', {
       method: 'POST',
@@ -752,7 +753,10 @@ function saveStaff() {
     }).then(r => r.json()).then(d => {
       if (d.success) toast('登录账号已创建');
       else if (d.error && d.error.includes('已注册')) { /* 已有账号，忽略 */ }
+      else if (d.error) toast(d.error);
     }).catch(() => {});
+  } else if (!editingStaffId) {
+    toast('请填写手机号和密码以创建登录账号'); return;
   }
   save(); renderStaff(); closeStaffModal();
 }
