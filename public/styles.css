@@ -305,7 +305,7 @@ input[type="number"] { -moz-appearance: textfield; }
 /* ========== 图表 ========== */
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(450px, 100%), 1fr));
   gap: 14px;
 }
 .chart-card {
@@ -702,27 +702,40 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
     padding: 8px 14px;
     padding-top: calc(8px + env(safe-area-inset-top, 0px));
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
   }
   .topbar .logo { font-size: 14px; }
   .topbar .logo .badge { display: none; }
   .nav {
     order: 3;
     width: 100%;
-    gap: 4px;
-    padding-bottom: 4px;
+    gap: 2px;
+    padding: 4px 0;
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x proximity;
+    /* 让导航栏可横向滚动而不换行 */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin: 0 -14px;
+    padding-left: 14px;
+    padding-right: 14px;
   }
   .nav button {
-    padding: 8px 12px;
+    padding: 6px 10px;
     font-size: 12px;
     scroll-snap-align: start;
+    flex-shrink: 0;
+    border-radius: 16px;
+    line-height: 1.2;
   }
-  .role-switch { width: 100%; justify-content: flex-end; }
-  .role-switch select { max-width: 130px; font-size: 12px; padding: 8px 10px; }
-  .community-switch { width: 100%; justify-content: flex-start; }
-  .community-switch select { max-width: 130px; font-size: 12px; padding: 8px 10px; }
+  .nav button.active {
+    background: rgba(255,255,255,.18);
+  }
+  .role-switch { width: auto; justify-content: flex-end; flex-shrink: 1; min-width: 0; }
+  .role-switch select { max-width: 110px; font-size: 12px; padding: 6px 8px; }
+  .community-switch { flex-shrink: 1; min-width: 0; }
+  .community-switch select { max-width: 110px; font-size: 12px; padding: 6px 8px; }
+  .community-switch label { display: none; }
   .main { padding: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
   .page-title { font-size: 17px; }
   .page-sub { font-size: 12px; margin-bottom: 14px; }
@@ -730,13 +743,14 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
   .kpi { padding: 12px 14px; }
   .kpi .value { font-size: 22px; }
   .kpi .label { font-size: 11px; }
+  /* 图表：单列 + 防溢出 */
   .chart-grid { grid-template-columns: 1fr; gap: 10px; }
-  .chart-box { height: 220px; }
+  .chart-card { padding: 14px 12px; overflow: hidden; }
+  .chart-box { height: 220px; width: 100%; max-width: 100%; }
   .chart-box.tall { height: 240px; }
-  .chart-card { padding: 14px 16px; }
-  .card { padding: 14px; }
+  .card { padding: 14px; overflow: hidden; }
   .toolbar { gap: 6px; }
-  .toolbar select { padding: 8px 10px; font-size: 12px; }
+  .toolbar select { padding: 8px 10px; font-size: 12px; max-width: 120px; }
   /* 表格横向滚动优化 */
   .table-wrap {
     margin: 0 -14px;
@@ -765,11 +779,17 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
   #toast { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); max-width: 85vw; text-align: center; }
   /* 登录页适配 */
   #login-page > div { padding: 24px 20px !important; width: 100% !important; max-width: 90vw !important; }
+  /* 绩效表移动端 */
+  .performance-card { overflow-x: auto; }
+  .performance-table { min-width: 600px; }
 }
 
 @media (max-width: 480px) {
-  .kpi-grid { grid-template-columns: 1fr; }
-  .nav button { padding: 7px 10px; font-size: 11px; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .kpi { padding: 10px 12px; }
+  .kpi .value { font-size: 20px; }
+  .nav { gap: 1px; }
+  .nav button { padding: 5px 8px; font-size: 11px; }
   .btn { padding: 8px 12px; font-size: 13px; }
   .performance-table { font-size: 11px; }
   .page-title { font-size: 15px; }
@@ -778,6 +798,11 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
   .drawer-section { padding: 12px 14px; }
   .tl-block { font-size: 9px; height: 28px; }
   .month-day { min-width: 60px; padding: 6px 8px; font-size: 10px; }
+  /* 顶栏更紧凑 */
+  .topbar { padding: 6px 10px; gap: 4px; }
+  .topbar .logo { font-size: 13px; }
+  .role-switch select { max-width: 90px; font-size: 11px; }
+  .community-switch select { max-width: 90px; font-size: 11px; }
 }
 
 /* 横屏适配 */
