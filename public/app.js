@@ -1325,6 +1325,7 @@ function doLogin(){
   var phone=$('#login-phone').value.trim();
   var pwd=$('#login-password').value;
   if(!phone||!pwd){$('#login-error').textContent='请填写手机号和密码';return;}
+  if(window._jigsawPassed===false){$('#login-error').textContent='请先完成滑动验证';return;}
   fetch(API_BASE+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone,password:pwd})}).then(r=>r.json()).then(d=>{
     if(d.success){
       localStorage.setItem('login_user',JSON.stringify(d.user));
@@ -1369,6 +1370,7 @@ function checkLogin(){
 function showLoginPage(){
   $('#app-main').style.display='none';
   $('#login-page').style.display='flex';
+  window._jigsawPassed=false;
   // 初始化滑动验证码
   var container=$('#jigsaw-container');
   if(container&&typeof jigsaw!=='undefined'){
@@ -1378,18 +1380,26 @@ function showLoginPage(){
       width:290,
       height:130,
       onSuccess:function(){
+        window._jigsawPassed=true;
         $('#login-btn').disabled=false;
         $('#login-btn').style.opacity='1';
       },
       onFail:function(){
+        window._jigsawPassed=false;
         $('#login-btn').disabled=true;
         $('#login-btn').style.opacity='0.5';
       },
       onRefresh:function(){
+        window._jigsawPassed=false;
         $('#login-btn').disabled=true;
         $('#login-btn').style.opacity='0.5';
       }
     });
+    $('#login-btn').disabled=true;
+    $('#login-btn').style.opacity='0.5';
+  } else {
+    // 验证码加载失败，允许直接登录
+    window._jigsawPassed=true;
   }
 }
 function doLogout(){
