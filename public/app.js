@@ -221,128 +221,13 @@ function applyRoleView() {
   if (openTicketId) openDrawer(openTicketId);
 }
 /* ============================================================
-   工单列表渲染
+   工单列表渲染（旧版已移除，使用下方增强版）
    ============================================================ */
-function renderTickets(type) {
-  const tbody = $(`#tbody-${type}`);
-  const fStatus = $(`#filter-status-${type}`).value;
-  const fCat = $(`#filter-cat-${type}`).value;
-  let rows = state.tickets.filter(t => t.type === type);
-  if (fStatus) rows = rows.filter(t => t.status === fStatus);
-  if (fCat) rows = rows.filter(t => t.cat === fCat);
-  rows.sort((a, b) => new Date(b.created) - new Date(a.created));
-
-  $(`#count-${type}`).textContent = `共 ${rows.length} 张工单`;
-
-  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="9" class="empty">暂无符合条件的工单</td></tr>`; return; }
-
-  tbody.innerHTML = rows.map(t => {
-    const src = t.source === 'ai'
-      ? `<span class="src-ai">微信群·句子秒懂AI</span>${t.aggregated && t.aggregated.length > 1 ? ` <span class="tag ai">聚合${t.aggregated.length}</span>` : ''}`
-      : `<span class="src-manual">手动录入</span>`;
-    return `<tr onclick="openDrawer('${t.id}')">
-      <td class="mono">${esc(t.id)}</td>
-      <td>${esc(t.loc)}</td>
-      <td><span class="tag cat">${esc(t.cat)}</span></td>
-      <td><span class="tag ${STATUS_CLASS[t.status]}">${STATUS_LABEL[t.status]}</span></td>
-      <td>${t.worker ? avatar(t.worker, staffColor(t.worker)) + esc(t.worker) : '<span style="color:#aaa">待指派</span>'}</td>
-      <td>${src}</td>
-      <td class="mono">${fmtTime(t.created)}</td>
-      <td>${durLabel(t)}</td>
-    </tr>`;
-  }).join('');
-}
-
-function initFilters(type) {
-  const cats = type === 'repair' ? SEED.repairCats : SEED.complaintCats;
-  $(`#filter-cat-${type}`).innerHTML = `<option value="">全部类型</option>` + cats.map(c => `<option value="${c}">${c}</option>`).join('');
-  $(`#filter-status-${type}`).innerHTML = `<option value="">全部状态</option>` +
-    Object.entries(STATUS_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
-  $(`#filter-status-${type}`).onchange = () => renderTickets(type);
-  $(`#filter-cat-${type}`).onchange = () => renderTickets(type);
-}
 
 /* ============================================================
-   详情抽屉
+   详情抽屉（旧版已移除，使用下方增强版）
    ============================================================ */
 let openTicketId = null;
-
-function openDrawer(id) {
-  const t = state.tickets.find(x => x.id === id);
-  if (!t) return;
-  openTicketId = id;
-  const steps = t.type === 'repair' ? SEED.repairSteps : SEED.complaintSteps;
-
-  $('#drawer-title').textContent = `${t.id} · ${t.cat}`;
-  $('#drawer-sub').textContent = `${t.loc}　|　${STATUS_LABEL[t.status]}`;
-
-  // —— 三要素 ——
-  const el = t.elements || {};
-  const elementsHtml = `
-    <div class="elements">
-      <div class="elem"><div class="k">事件类型</div><div class="v">${esc(el.event || t.cat)}</div></div>
-      <div class="elem"><div class="k">地点</div><div class="v">${esc(el.place || t.loc)}</div></div>
-      <div class="elem full"><div class="k">时间</div><div class="v">${esc(el.time || fmtTime(t.created))}</div></div>
-    </div>`;
-
-  // —— 聚合反馈 ——
-  let aggHtml = '';
-  if (t.aggregated && t.aggregated.length) {
-    aggHtml = `<div class="drawer-section">
-      <h4>居民反馈（句子秒懂聚合 ${t.aggregated.length} 条 → 1 张工单）</h4>
-      <ul class="agg-list">${t.aggregated.map(a =>
-        `<li><span class="av">${esc(a.who[0])}</span><div><b>${esc(a.who)}</b>：${esc(a.msg)}<div style="color:#aaa;font-size:11px">${fmtTime(a.t)}</div></div></li>`).join('')}</ul>
-    </div>`;
-  }
-
-  // —— 时间线 ——
-  const doneCount = t.steps.length;
-  const tlHtml = steps.map((label, i) => {
-    const s = t.steps[i];
-    let cls = 'todo';
-    if (i < doneCount - 1) cls = 'done';
-    else if (i === doneCount - 1) cls = (t.status === 'done') ? 'done' : 'current';
-    return `<div class="tl-item ${cls}">
-      <div class="dot"></div>
-      <div class="tl-title">${s ? esc(s.title) : esc(label)}</div>
-      ${s ? `<div class="tl-meta">${esc(s.who)} · ${fmtTime(s.time)}</div>` : `<div class="tl-meta">待处理</div>`}
-    </div>`;
-  }).join('');
-
-  // —— 照片（从 API 异步加载真实图片） ——
-  let photoHtml = `<div id="drawer-photos" style="color:#aaa;font-size:13px">加载照片中...</div>`;
-
-  // —— 操作按钮（按角色 + 状态） ——
-  const actHtml = buildActions(t);
-
-  $('#drawer-body').innerHTML = `
-    <div class="drawer-section">
-      <h4>AI 识别三要素（句子秒懂）</h4>
-      ${elementsHtml}
-      <div style="margin-top:12px;color:#5e6573;font-size:13px">问题描述：${esc(t.desc)}</div>
-      <div style="margin-top:6px;font-size:13px">来源：${t.source === 'ai' ? '<span class="tag ai">微信群·句子秒懂AI</span>' : '<span class="tag manual">手动录入</span>'}</div>
-    </div>
-    ${aggHtml}
-    <div class="drawer-section">
-      <h4>流转时间线</h4>
-      <div class="timeline">${tlHtml}</div>
-    </div>
-    <div class="drawer-section">
-      <h4>处理照片（师傅现场上传）</h4>
-      ${photoHtml}
-    </div>
-    <div class="drawer-section">
-      <h4>操作（当前角色：${esc(roleObj().name)}）</h4>
-      <div class="actions">${actHtml}</div>
-    </div>
-  `;
-
-  $('#drawerMask').classList.add('open');
-  $('#drawer').classList.add('open');
-
-  // 异步加载真实照片
-  loadDrawerPhotos(id);
-}
 
 function loadDrawerPhotos(ticketId) {
   fetch(API_BASE + '/api/tickets/' + ticketId + '/photos')
@@ -382,91 +267,13 @@ function closeDrawer() {
   openTicketId = null;
 }
 
-/* 根据角色和状态生成操作按钮 */
-function buildActions(t) {
-  const role = currentRole;
-  const isRepair = t.type === 'repair';
-  const myWorker = roleWorkerName();          // 维修工角色对应的师傅名
-  const btns = [];
-
-  if (isRepair) {
-    // 报修流程
-    if (t.status === 'wait') {
-      if (role === 'eng_lead') {
-        const opts = SEED.workers.map(w => `<option value="${w}">${w}</option>`).join('');
-        btns.push(`<select id="assignWorker" class="toolbar" style="padding:6px 10px;border:1px solid #e6eaf0;border-radius:8px">${opts}</select>`);
-        btns.push(`<button class="btn" onclick="assignTicket('${t.id}')">派单给该师傅</button>`);
-      } else {
-        return hint('当前角色无操作权限。请切换为「工程部主管」进行派单。');
-      }
-    } else if (t.status === 'doing') {
-      // 已派单，处理中：师傅上传照片 / 完成
-      if (role.startsWith('worker_') && t.worker === myWorker) {
-        btns.push(`<button class="btn teal" onclick="uploadPhoto('${t.id}')">上传现场照片</button>`);
-        btns.push(`<button class="btn green" onclick="workerFinish('${t.id}', 'once')">维修·一次完成</button>`);
-        btns.push(`<button class="btn ghost" onclick="workerFinish('${t.id}', 'twice')">需二次上门</button>`);
-      } else if (role === 'eng_lead') {
-        return hint(`已派单给 ${t.worker}，等待维修工现场处理。可切换为该维修工角色操作。`);
-      } else {
-        return hint(`该工单已派给 ${t.worker}。请切换为对应维修工角色操作。`);
-      }
-    } else if (t.status === 'confirm') {
-      if (role === 'eng_lead') {
-        btns.push(`<button class="btn green" onclick="confirmDone('${t.id}')">确认完成并回复微信群</button>`);
-        btns.push(`<button class="btn gray" onclick="reject('${t.id}')">退回重处理</button>`);
-      } else {
-        return hint('维修已上报，等待「工程部主管」结果确认。');
-      }
-    } else { // done
-      return hint('工单已完成，已在微信群回复「已处理完毕」。流程结束。');
-    }
-  } else {
-    // 投诉流程
-    if (t.status === 'wait') {
-      if (role === 'pm_lead') {
-        const opts = SEED.keepers.map(w => `<option value="${w}">${w}</option>`).join('');
-        btns.push(`<select id="assignWorker" style="padding:6px 10px;border:1px solid #e6eaf0;border-radius:8px">${opts}</select>`);
-        btns.push(`<button class="btn" onclick="assignTicket('${t.id}')">指派给该管家</button>`);
-      } else {
-        return hint('当前角色无操作权限。请切换为「物业主管」进行指派。');
-      }
-    } else if (t.status === 'doing') {
-      if (role === 'pm_keeper' && t.worker) {
-        btns.push(`<button class="btn green" onclick="workerFinish('${t.id}', 'once')">处理完成·提交结果</button>`);
-      } else if (role === 'pm_lead') {
-        return hint(`已指派给 ${t.worker}，等待物业管家处理。`);
-      } else {
-        return hint(`该投诉已指派给 ${t.worker}。请切换为「物业管家」操作。`);
-      }
-    } else if (t.status === 'confirm') {
-      if (role === 'pm_lead') {
-        btns.push(`<button class="btn green" onclick="confirmDone('${t.id}')">确认完成并回复微信群</button>`);
-        btns.push(`<button class="btn gray" onclick="reject('${t.id}')">退回重处理</button>`);
-      } else {
-        return hint('已上报处理结果，等待「物业主管」结果确认。');
-      }
-    } else {
-      return hint('投诉已完成，已在微信群回复居民。流程结束。');
-    }
-  }
-  return btns.join(' ');
-}
-function hint(text) { return `<div class="hint">ℹ️ ${esc(text)}</div>`; }
+/* buildActions / assignTicket / workerFinish / confirmDone / reject / afterAction
+   旧版已移除，使用下方增强版 */
 
 /* ============================================================
-   工单操作（状态机推进）
+   工单操作（旧版已移除，使用下方增强版）
    ============================================================ */
 function pushStep(t, title, who) { t.steps.push({ title, who, time: new Date().toISOString() }); }
-
-function assignTicket(id) {
-  const t = state.tickets.find(x => x.id === id);
-  const w = $('#assignWorker').value;
-  t.worker = w;
-  t.status = 'doing';
-  if (t.type === 'repair') pushStep(t, '工单分配', roleObj().name);
-  else pushStep(t, '指派', roleObj().name);
-  save(); afterAction(id, `已${t.type === 'repair' ? '派单' : '指派'}给 ${w}`);
-}
 
 function uploadPhoto(id) {
   // 创建隐藏的文件输入框
@@ -504,82 +311,12 @@ function uploadPhoto(id) {
   input.click();
 }
 
-function workerFinish(id, mode) {
-  const t = state.tickets.find(x => x.id === id);
-  if (t.type === 'repair') {
-    if (!t.steps.some(s => s.title.includes('现场确认'))) pushStep(t, '现场确认', t.worker);
-    if (mode === 'once') {
-      pushStep(t, '现场维修·一次完成', t.worker);
-      t.status = 'confirm';
-      afterAction(id, '已标记一次完成，等待主管确认');
-    } else {
-      pushStep(t, '现场维修·需二次上门', t.worker);
-      // 仍为处理中，等待二次上门；这里演示直接生成二次完成
-      pushStep(t, '二次上门·完成', t.worker);
-      t.status = 'confirm';
-      afterAction(id, '已记录需二次上门并完成，等待主管确认');
-    }
-  } else {
-    pushStep(t, '处理完成', t.worker);
-    t.status = 'confirm';
-    afterAction(id, '已提交处理结果，等待主管确认');
-  }
-  save();
-}
 
-function confirmDone(id) {
-  const t = state.tickets.find(x => x.id === id);
-  pushStep(t, '结果确认', roleObj().name);
-  pushStep(t, '处理完成·已确认', roleObj().name);
-  t.status = 'done';
-  t.finished = new Date().toISOString();
-  const st = state.staff.find(s => s.name === t.worker);
-  if (st) st.done += 1;
-  save(); apiPatch(t.id, {status:'done', finished:t.finished});
-  // 自动通知群
-  fetch(API_BASE + '/api/notify', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticketId:t.id,event:'completed'})}).catch(function(){});
-  afterAction(id, '工单已完成');
-}
-
-function reject(id) {
-  const t = state.tickets.find(x => x.id === id);
-  pushStep(t, '主管退回·需重新处理', roleObj().name);
-  t.status = 'doing';
-  save(); afterAction(id, '已退回，重新处理');
-}
-
-function afterAction(id, msg) {
-  toast(msg);
-  openDrawer(id);
-  renderTickets('repair');
-  renderTickets('complaint');
-}
+/* confirmDone / reject / afterAction 旧版已移除，使用下方增强版 */
 
 /* ============================================================
-   看板 Dashboard
+   看板 Dashboard（旧版已移除，使用下方增强版）
    ============================================================ */
-function renderDashboard() {
-  const ts = state.tickets;
-  const repairs = ts.filter(t => t.type === 'repair');
-  const complaints = ts.filter(t => t.type === 'complaint');
-  const done = ts.filter(t => t.status === 'done');
-
-  // KPI
-  $('#kpi-total').innerHTML = ts.length + ' <small>张</small>';
-  $('#kpi-repair').innerHTML = repairs.length + ' <small>张</small>';
-  $('#kpi-complaint').innerHTML = complaints.length + ' <small>张</small>';
-
-  const durs = done.map(t => durHours(t.created, t.finished)).filter(x => x != null);
-  const avg = durs.length ? (durs.reduce((a, b) => a + b, 0) / durs.length).toFixed(1) : '—';
-  $('#kpi-avg').innerHTML = avg + ' <small>小时</small>';
-
-  // 按时完成率（设阈值 24h 内完成为按时）
-  const onTime = done.filter(t => { const h = durHours(t.created, t.finished); return h != null && h <= 24; }).length;
-  const rate = done.length ? Math.round(onTime / done.length * 100) : 0;
-  $('#kpi-rate').innerHTML = rate + ' <small>%</small>';
-
-  drawCharts();
-}
 
 function getChart(id) {
   if (charts[id]) return charts[id];
@@ -587,118 +324,11 @@ function getChart(id) {
   return charts[id];
 }
 
-function drawCharts() {
-  const teal = '#13c2c2', blue = '#1677ff', purple = '#722ed1', green = '#52c41a', orange = '#faad14', pink = '#eb2f96';
-
-  /* 近30天趋势（折线，数据密集） */
-  const days = [], repairArr = [], complaintArr = [];
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date('2026-06-29'); d.setDate(d.getDate() - i);
-    days.push((d.getMonth() + 1) + '/' + d.getDate());
-    // 用确定性伪随机让柱子多且密集
-    const base = 6 + Math.round(4 * Math.sin(i / 2.3) + 3 * Math.cos(i / 1.7));
-    repairArr.push(Math.max(2, base + (i % 3)));
-    complaintArr.push(Math.max(1, Math.round(base * 0.55 + (i % 4) - 1)));
-  }
-  getChart('chart-trend').setOption({
-    tooltip: { trigger: 'axis' },
-    legend: { data: ['报修', '投诉'], right: 10 },
-    grid: { left: 40, right: 20, top: 40, bottom: 30 },
-    xAxis: { type: 'category', data: days, axisLabel: { fontSize: 10, interval: 1 } },
-    yAxis: { type: 'value' },
-    series: [
-      { name: '报修', type: 'line', smooth: true, data: repairArr, areaStyle: { opacity: .15 }, itemStyle: { color: blue }, symbolSize: 4 },
-      { name: '投诉', type: 'line', smooth: true, data: complaintArr, areaStyle: { opacity: .15 }, itemStyle: { color: orange }, symbolSize: 4 },
-    ],
-  });
-
-  /* 各师傅处理量（柱状） */
-  const workers = state.staff.filter(s => s.role === '维修工');
-  getChart('chart-worker-count').setOption({
-    tooltip: { trigger: 'axis' },
-    grid: { left: 40, right: 20, top: 20, bottom: 30 },
-    xAxis: { type: 'category', data: workers.map(w => w.name) },
-    yAxis: { type: 'value' },
-    series: [{
-      type: 'bar', data: workers.map(w => w.done), barWidth: '50%',
-      itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: teal }, { offset: 1, color: blue }]), borderRadius: [6, 6, 0, 0] },
-      label: { show: true, position: 'top' },
-    }],
-  });
-
-  /* 各师傅平均处理时长（柱状，演示数据） */
-  const avgDur = { '张师傅': 3.2, '李师傅': 3.8, '王师傅': 4.5, '赵师傅': 5.1, '孙师傅': 4.0 };
-  getChart('chart-worker-dur').setOption({
-    tooltip: { trigger: 'axis', formatter: '{b}: {c} 小时' },
-    grid: { left: 40, right: 20, top: 20, bottom: 30 },
-    xAxis: { type: 'category', data: workers.map(w => w.name) },
-    yAxis: { type: 'value', name: '小时' },
-    series: [{
-      type: 'bar', data: workers.map(w => avgDur[w.name] || 4), barWidth: '50%',
-      itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: purple }, { offset: 1, color: pink }]), borderRadius: [6, 6, 0, 0] },
-      label: { show: true, position: 'top', formatter: '{c}h' },
-    }],
-  });
-
-  /* 报修类型分布（饼） */
-  const catCount = {};
-  SEED.repairCats.forEach(c => catCount[c] = 0);
-  state.tickets.filter(t => t.type === 'repair').forEach(t => catCount[t.cat] = (catCount[t.cat] || 0) + 1);
-  getChart('chart-cat').setOption({
-    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-    legend: { bottom: 0 },
-    color: [blue, teal, green, orange, purple],
-    series: [{
-      type: 'pie', radius: ['38%', '65%'], center: ['50%', '45%'],
-      data: Object.entries(catCount).map(([n, v]) => ({ name: n, value: v })),
-      label: { formatter: '{b}\n{c}' },
-    }],
-  });
-
-  /* 工单状态分布（环形） */
-  const stCount = { wait: 0, doing: 0, confirm: 0, done: 0 };
-  state.tickets.forEach(t => stCount[t.status]++);
-  getChart('chart-status').setOption({
-    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-    legend: { bottom: 0 },
-    color: [orange, blue, purple, green],
-    series: [{
-      type: 'pie', radius: ['45%', '68%'], center: ['50%', '45%'],
-      data: [
-        { name: '待派单', value: stCount.wait },
-        { name: '处理中', value: stCount.doing },
-        { name: '待确认', value: stCount.confirm },
-        { name: '已完成', value: stCount.done },
-      ],
-      label: { formatter: '{b}\n{c}' },
-    }],
-  });
-}
-
 window.addEventListener('resize', () => Object.values(charts).forEach(c => c.resize()));
 
 /* ============================================================
-   管理平台（师傅 CRUD）
+   管理平台（旧版 renderStaff 已移除，使用下方增强版）
    ============================================================ */
-function renderStaff() {
-  const tbody = $('#tbody-staff');
-  tbody.innerHTML = state.staff.map(s => {
-    const dotCls = s.status === 'on' ? 'on' : (s.status === 'busy' ? 'busy' : 'off');
-    const stLabel = s.status === 'on' ? '在岗' : (s.status === 'busy' ? '忙碌' : '休息');
-    return `<tr style="cursor:default">
-      <td>${avatar(s.name, staffColor(s.name))}${esc(s.name)}</td>
-      <td><span class="tag ${s.role === '维修工' ? 'cat' : 'ai'}">${esc(s.role)}</span></td>
-      <td>${esc(s.skill)}</td>
-      <td class="mono">${esc(s.phone)}</td>
-      <td><span class="staff-status"><span class="status-dot ${dotCls}"></span>${stLabel}</span></td>
-      <td><b>${s.done}</b></td>
-      <td>
-        <button class="btn sm ghost" onclick="openStaffModal('${s.id}')">编辑</button>
-        <button class="btn sm danger" onclick="deleteStaff('${s.id}')">删除</button>
-      </td>
-    </tr>`;
-  }).join('');
-}
 
 let editingStaffId = null;
 function openStaffModal(id) {
@@ -766,16 +396,6 @@ function deleteStaff(id) {
     state.staff = state.staff.filter(x => x.id !== id);
     save(); renderStaff(); toast('已删除');
   }
-}
-
-/* ============================================================
-   渲染入口
-   ============================================================ */
-function renderAll() {
-  renderTickets('repair');
-  renderTickets('complaint');
-  renderStaff();
-  if ($('#page-dashboard').classList.contains('active')) renderDashboard();
 }
 
 /* ---------- 启动 ---------- */
@@ -952,6 +572,8 @@ function renderTickets(type) {
   if(!rows.length){tbody.innerHTML='<tr><td colspan="8" class="empty">暂无符合条件的工单</td></tr>';return;}
   tbody.innerHTML=rows.map(t=>{var h=durHours(t.created,t.finished||new Date().toISOString())||0;return `<tr class="ticket-row-${t.priority}" onclick="openDrawer('${t.id}')"><td>${priorityHtml(t.priority)}</td><td class="mono">${esc(t.id)}</td><td>${esc(t.loc)}</td><td><span class="tag cat">${esc(t.cat)}</span></td><td><span class="tag ${STATUS_CLASS[t.status]}">${STATUS_LABEL[t.status]}</span></td><td>${t.worker?avatar(t.worker,staffColor(t.worker))+esc(t.worker):'<span style="color:#aaa">待指派</span>'}</td><td class="mono">${fmtTime(t.created)}</td><td><span class="wait-age ${t.status!=='done'&&h>ticketSla(t)?'overdue':''}">${t.status==='done'?'处理用时':'已等待'} ${ageLabel(t)}</span></td></tr>`}).join('');
 }
+
+function hint(text) { return `<div class="hint">ℹ️ ${esc(text)}</div>`; }
 
 function openDrawer(id) {
   var t=state.tickets.find(x=>x.id===id); if(!t)return; openTicketId=id;
