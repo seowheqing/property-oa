@@ -1231,7 +1231,14 @@ function enterApp(user){
   }
   localStorage.setItem('juzi_oa_role_v1',currentRole);
   var sel=$('#roleSelect');
-  if(sel&&sel.querySelector('option[value="'+currentRole+'"]'))sel.value=currentRole;
+  if(sel){
+    sel.value=currentRole;
+    sel.disabled=true;
+    sel.style.display='none';
+  }
+  // 显示当前用户名
+  var roleLabel=document.querySelector('.role-switch label');
+  if(roleLabel){roleLabel.style.display='inline';roleLabel.textContent=user.name+' · '+(user.role==='admin'?'主管':user.role==='worker'?'维修工':'管家');}
   applyRoleView();
   // 图表在display:none时初始化尺寸不对，显示后强制resize
   setTimeout(function(){ Object.values(charts).forEach(function(c){c.resize();}); renderDashboard(); }, 100);
