@@ -707,18 +707,15 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
   .topbar .logo { font-size: 14px; }
   .topbar .logo .badge { display: none; }
   .nav {
-    order: 3;
+    order: 10;
     width: 100%;
+    flex: none;
     gap: 2px;
-    padding: 4px 0;
+    padding: 6px 0 2px;
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x proximity;
-    /* 让导航栏可横向滚动而不换行 */
     flex-wrap: nowrap;
     overflow-x: auto;
-    margin: 0 -14px;
-    padding-left: 14px;
-    padding-right: 14px;
   }
   .nav button {
     padding: 6px 10px;
@@ -731,7 +728,7 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
   .nav button.active {
     background: rgba(255,255,255,.18);
   }
-  .role-switch { width: auto; justify-content: flex-end; flex-shrink: 1; min-width: 0; }
+  .role-switch { margin-left: auto; flex-shrink: 1; min-width: 0; }
   .role-switch select { max-width: 110px; font-size: 12px; padding: 6px 8px; }
   .community-switch { flex-shrink: 1; min-width: 0; }
   .community-switch select { max-width: 110px; font-size: 12px; padding: 6px 8px; }
