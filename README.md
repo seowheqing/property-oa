@@ -104,7 +104,7 @@ node seed-test.js
 | GET | `/api/sla/alert` | 触发超时告警推送到预警群 |
 | GET | `/api/report?from=&to=` | 生成工单报告（月报） |
 | POST | `/api/report/ai` | AI 智能分析报告（接秒懂/通义千问） |
-| POST | `/api/tickets/:id/photos` | 上传工单照片（JSON格式） |
+| POST | `/api/tickets/:id/photos` | 上传工单照片（multipart文件） |
 | GET | `/api/tickets/:id/photos` | 获取工单照片列表 |
 | POST | `/api/jzm/trigger-event` | 触发秒懂流程事件 |
 

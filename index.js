@@ -722,49 +722,48 @@ app.post('/api/report/ai', async (req, res) => {
 });
 
 // ============ 图片上传接口 ============
-const multer = require('multer') || null;
+const multer = require('multer');
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-// 简易文件上传（不依赖multer，用原生解析）
-app.post('/api/tickets/:id/photos', (req, res) => {
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const ticketDir = path.join(uploadDir, req.params.id);
+    if (!fs.existsSync(ticketDir)) fs.mkdirSync(ticketDir, { recursive: true });
+    cb(null, ticketDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext);
+  }
+});
+const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024, files: 10 } });
+
+// POST /api/tickets/:id/photos — 上传照片文件
+app.post('/api/tickets/:id/photos', upload.array('photos', 10), (req, res) => {
   const ticketId = req.params.id;
   const row = queryOne('SELECT * FROM tickets WHERE id = ?', [ticketId]);
   if (!row) return res.status(404).json({ error: '工单不存在' });
+  if (!req.files || !req.files.length) return res.status(400).json({ error: '没有上传文件' });
 
-  let body = '';
-  req.on('data', chunk => { body += chunk; });
-  req.on('end', () => {
-    try {
-      const data = JSON.parse(body);
-      // 接收 base64 图片或图片URL
-      const photos = data.photos || []; // [{url: "...", name: "..."}, ...]
-      if (!photos.length) return res.status(400).json({ error: '缺少 photos 数组' });
+  const photos = req.files.map(f => ({
+    filename: f.filename,
+    originalName: f.originalname,
+    url: `/uploads/${ticketId}/${f.filename}`,
+    size: f.size,
+    uploadedAt: new Date().toISOString()
+  }));
 
-      // 保存图片信息到数据库（存URL/路径）
-      // 扩展tickets表加photos字段（JSON字符串）
-      let existing = [];
-      try {
-        const ticket = rowToTicket(row);
-        existing = JSON.parse(ticket.message || '[]');
-        if (!Array.isArray(existing)) existing = [];
-      } catch(e) { existing = []; }
+  // 追加到JSON记录文件
+  const photoFile = path.join(uploadDir, `${ticketId}.json`);
+  let savedPhotos = [];
+  if (fs.existsSync(photoFile)) {
+    try { savedPhotos = JSON.parse(fs.readFileSync(photoFile, 'utf-8')); } catch(e) {}
+  }
+  savedPhotos.push(...photos);
+  fs.writeFileSync(photoFile, JSON.stringify(savedPhotos, null, 2));
 
-      // 用单独的photos表或直接存在message里不合适，加一列
-      // 简化方案：存photos到一个单独的JSON文件
-      const photoFile = path.join(uploadDir, `${ticketId}.json`);
-      let savedPhotos = [];
-      if (fs.existsSync(photoFile)) {
-        try { savedPhotos = JSON.parse(fs.readFileSync(photoFile, 'utf-8')); } catch(e) {}
-      }
-      savedPhotos.push(...photos.map(p => ({ ...p, uploadedAt: new Date().toISOString() })));
-      fs.writeFileSync(photoFile, JSON.stringify(savedPhotos, null, 2));
-
-      res.json({ success: true, ticketId, totalPhotos: savedPhotos.length, photos: savedPhotos });
-    } catch (e) {
-      res.status(400).json({ error: '请求体解析失败: ' + e.message });
-    }
-  });
+  res.json({ success: true, ticketId, uploaded: photos.length, totalPhotos: savedPhotos.length, photos: savedPhotos });
 });
 
 // GET /api/tickets/:id/photos — 获取工单照片列表
@@ -779,6 +778,9 @@ app.get('/api/tickets/:id/photos', (req, res) => {
     res.json({ data: [] });
   }
 });
+
+// 静态托管上传文件
+app.use('/uploads', express.static(uploadDir));
 
 // ============ 启动 ============
 initDB().then(() => {

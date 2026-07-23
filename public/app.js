@@ -427,13 +427,39 @@ function assignTicket(id) {
 }
 
 function uploadPhoto(id) {
-  const t = state.tickets.find(x => x.id === id);
-  const pool = ['📷', '🔧', '🛠️', '🚿', '⚡', '🪟', '🚪', '🌡️', '💡'];
-  t.photos = t.photos || [];
-  t.photos.push(pool[Math.floor(Math.random() * pool.length)]);
-  // 若尚未有"现场确认"节点则补上
-  if (!t.steps.some(s => s.title.includes('现场确认'))) pushStep(t, '现场确认', t.worker);
-  save(); afterAction(id, '已上传一张现场照片');
+  // 创建隐藏的文件输入框
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.multiple = true;
+  input.onchange = function() {
+    if (!input.files.length) return;
+    var formData = new FormData();
+    for (var i = 0; i < Math.min(input.files.length, 10); i++) {
+      formData.append('photos', input.files[i]);
+    }
+    toast('正在上传 ' + input.files.length + ' 张照片...');
+    fetch(API_BASE + '/api/tickets/' + id + '/photos', {
+      method: 'POST',
+      body: formData
+    }).then(r => r.json()).then(d => {
+      if (d.success) {
+        toast('已上传 ' + d.uploaded + ' 张照片');
+        // 更新本地状态
+        var t = state.tickets.find(x => x.id === id);
+        if (t) {
+          t.photos = t.photos || [];
+          d.photos.forEach(p => t.photos.push('📷'));
+          if (!t.steps.some(s => s.title.includes('现场确认'))) pushStep(t, '现场确认', t.worker);
+          save();
+        }
+        afterAction(id, '已上传 ' + d.uploaded + ' 张照片');
+      } else {
+        toast('上传失败: ' + (d.error || '未知错误'));
+      }
+    }).catch(() => toast('上传失败，网络错误'));
+  };
+  input.click();
 }
 
 function workerFinish(id, mode) {
