@@ -309,14 +309,8 @@ function openDrawer(id) {
     </div>`;
   }).join('');
 
-  // —— 照片 ——
-  let photoHtml;
-  if (t.photos && t.photos.length) {
-    photoHtml = `<div class="photos">${t.photos.map((p, i) =>
-      `<div class="photo">${p}<small>现场照片${i + 1}</small></div>`).join('')}</div>`;
-  } else {
-    photoHtml = `<div style="color:#aaa;font-size:13px">暂无现场照片</div>`;
-  }
+  // —— 照片（从 API 异步加载真实图片） ——
+  let photoHtml = `<div id="drawer-photos" style="color:#aaa;font-size:13px">加载照片中...</div>`;
 
   // —— 操作按钮（按角色 + 状态） ——
   const actHtml = buildActions(t);
@@ -345,7 +339,43 @@ function openDrawer(id) {
 
   $('#drawerMask').classList.add('open');
   $('#drawer').classList.add('open');
+
+  // 异步加载真实照片
+  loadDrawerPhotos(id);
 }
+
+function loadDrawerPhotos(ticketId) {
+  fetch(API_BASE + '/api/tickets/' + ticketId + '/photos')
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      var container = $('#drawer-photos');
+      if (!container) return;
+      var photos = json.data || [];
+      if (!photos.length) {
+        container.innerHTML = '<span style="color:#aaa;font-size:13px">暂无现场照片</span>';
+        return;
+      }
+      container.innerHTML = '<div class="photos">' + photos.map(function(p, i) {
+        var src = API_BASE + p.url;
+        return '<div class="photo" style="display:inline-block;margin:0 8px 8px 0;cursor:pointer">' +
+          '<img src="' + esc(src) + '" alt="现场照片' + (i + 1) + '" style="width:120px;height:90px;object-fit:cover;border-radius:8px;border:1px solid #e6eaf0" onclick="previewPhoto(\'' + esc(src) + '\')">' +
+          '<small style="display:block;text-align:center;color:#8c8c8c;margin-top:4px">照片' + (i + 1) + '</small></div>';
+      }).join('') + '</div>';
+    })
+    .catch(function() {
+      var container = $('#drawer-photos');
+      if (container) container.innerHTML = '<span style="color:#aaa;font-size:13px">照片加载失败</span>';
+    });
+}
+
+function previewPhoto(src) {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:10000;display:flex;align-items:center;justify-content:center;cursor:zoom-out';
+  overlay.innerHTML = '<img src="' + src + '" style="max-width:90%;max-height:90%;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.4)">';
+  overlay.onclick = function() { document.body.removeChild(overlay); };
+  document.body.appendChild(overlay);
+}
+
 function closeDrawer() {
   $('#drawerMask').classList.remove('open');
   $('#drawer').classList.remove('open');
@@ -924,9 +954,10 @@ function openDrawer(id) {
   $('#drawer-title').textContent=`${t.id} · ${t.cat}`; $('#drawer-sub').textContent=`${t.loc}　|　${STATUS_LABEL[t.status]}`;
   var rejects=(t.rejectHistory||[]).map(r=>`<div class="reject-history"><b>驳回：</b>${esc(r.reason)} · ${esc(r.who)} · ${fmtTime(r.time)}</div>`).join('');
   var timeline=(t.steps||[]).map((s,i)=>`<div class="tl-item ${i===t.steps.length-1&&t.status!=='done'?'current':'done'}"><div class="dot"></div><div class="tl-title">${esc(s.title)}</div><div class="tl-meta">${esc(s.who)} · ${fmtTime(s.time)}</div></div>`).join('');
-  var photos=t.photos&&t.photos.length?`<div class="photos">${t.photos.map((p,i)=>`<div class="photo">${p}<small>现场照片${i+1}</small></div>`).join('')}</div>`:'<span style="color:#aaa">暂无现场照片</span>';
+  var photos='<div id="drawer-photos" style="color:#aaa;font-size:13px">加载照片中...</div>';
   $('#drawer-body').innerHTML=`<div class="drawer-section"><h4>工单信息</h4><div class="elements"><div class="elem"><div class="k">优先级</div><div class="v">${priorityHtml(t.priority)}</div></div><div class="elem"><div class="k">事件类别</div><div class="v">${esc(typeLabel(t))} · ${esc(t.cat)}</div></div><div class="elem"><div class="k">地点</div><div class="v">${esc(t.loc)}</div></div><div class="elem"><div class="k">已等待/处理</div><div class="v">${ageLabel(t)}</div></div><div class="elem full"><div class="k">问题描述</div><div class="v">${esc(t.desc)}</div></div></div>${rejects}</div><div class="drawer-section"><h4>流转时间线</h4><div class="timeline">${timeline}</div></div><div class="drawer-section"><h4>现场材料</h4>${photos}</div><div class="drawer-section"><h4>操作（当前角色：${esc(roleObj().name)}）</h4><div class="actions">${buildActions(t)}</div></div>`;
   $('#drawerMask').classList.add('open'); $('#drawer').classList.add('open');
+  loadDrawerPhotos(id);
 }
 function buildActions(t) {
   var repair=t.type==='repair', keeper=!repair, mine=repair&&currentRole.startsWith('worker_')&&t.worker===roleWorkerName();
