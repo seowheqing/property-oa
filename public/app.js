@@ -1221,6 +1221,28 @@ function checkLogin(){
 function showLoginPage(){
   $('#app-main').style.display='none';
   $('#login-page').style.display='flex';
+  // 初始化滑动验证码
+  var container=$('#jigsaw-container');
+  if(container&&typeof jigsaw!=='undefined'){
+    container.innerHTML='';
+    jigsaw.init({
+      el:container,
+      width:290,
+      height:130,
+      onSuccess:function(){
+        $('#login-btn').disabled=false;
+        $('#login-btn').style.opacity='1';
+      },
+      onFail:function(){
+        $('#login-btn').disabled=true;
+        $('#login-btn').style.opacity='0.5';
+      },
+      onRefresh:function(){
+        $('#login-btn').disabled=true;
+        $('#login-btn').style.opacity='0.5';
+      }
+    });
+  }
 }
 function doLogout(){
   localStorage.removeItem('login_user');
