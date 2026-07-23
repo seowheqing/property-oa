@@ -68,8 +68,18 @@
   --transition: .18s ease;
 }
 
-/* ========== 重置 ========== */
+/* ========== 重置 + normalize.css 移动端增强 ========== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* 防止 iOS 横屏时字体放大 */
+html {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  /* 安全区域适配（刘海屏 / 底部横条） */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
 
 body {
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
@@ -79,7 +89,44 @@ body {
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* 防止移动端点击高亮 */
+  -webkit-tap-highlight-color: transparent;
+  /* 优化触摸滚动 */
+  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
 }
+
+/* 移动端触摸目标最小尺寸（WCAG 2.5.5 建议 44px） */
+@media (pointer: coarse) {
+  button, select, input, [role="button"], a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .btn.sm { min-height: 36px; min-width: auto; }
+  .nav button { min-height: 40px; }
+}
+
+/* 移动端输入框字体 >= 16px 防止 iOS 自动缩放 */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* 图片自适应 */
+img, video, svg { max-width: 100%; height: auto; }
+
+/* 消除移动端 input 默认样式 */
+input, button, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+button { cursor: pointer; }
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
 
 /* ========== 顶部导航 ========== */
 .topbar {
@@ -626,43 +673,105 @@ tbody tr:hover { background: var(--primary-light); box-shadow: inset 3px 0 0 var
 
 /* ========== 帮助/其他工单页 ========== */
 
-/* ========== 移动端适配 ========== */
+/* ========== 移动端适配（normalize.css 增强） ========== */
 @media (max-width: 768px) {
   .topbar {
     height: auto;
     min-height: 48px;
     padding: 8px 14px;
+    padding-top: calc(8px + env(safe-area-inset-top, 0px));
     flex-wrap: wrap;
     gap: 8px;
   }
   .topbar .logo { font-size: 14px; }
   .topbar .logo .badge { display: none; }
-  .nav { order: 3; width: 100%; gap: 2px; padding-bottom: 2px; }
-  .nav button { padding: 5px 10px; font-size: 12px; }
-  .role-switch select { max-width: 130px; font-size: 11px; }
-  .main { padding: 14px; }
+  .nav {
+    order: 3;
+    width: 100%;
+    gap: 4px;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+  .nav button {
+    padding: 8px 12px;
+    font-size: 12px;
+    scroll-snap-align: start;
+  }
+  .role-switch { width: 100%; justify-content: flex-end; }
+  .role-switch select { max-width: 130px; font-size: 12px; padding: 8px 10px; }
+  .main { padding: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
   .page-title { font-size: 17px; }
+  .page-sub { font-size: 12px; margin-bottom: 14px; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .kpi { padding: 12px 14px; }
   .kpi .value { font-size: 22px; }
-  .chart-grid { grid-template-columns: 1fr; }
+  .kpi .label { font-size: 11px; }
+  .chart-grid { grid-template-columns: 1fr; gap: 10px; }
   .chart-box { height: 220px; }
   .chart-box.tall { height: 240px; }
+  .chart-card { padding: 14px 16px; }
   .card { padding: 14px; }
   .toolbar { gap: 6px; }
-  .toolbar select { padding: 6px 8px; font-size: 12px; }
+  .toolbar select { padding: 8px 10px; font-size: 12px; }
+  /* 表格横向滚动优化 */
+  .table-wrap {
+    margin: 0 -14px;
+    padding: 0 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+  table { font-size: 12px; }
+  thead th { padding: 8px 10px; font-size: 11px; }
+  tbody td { padding: 10px; }
+  /* 抽屉全屏适配 */
   .drawer { width: 100%; max-width: 100vw; }
+  .drawer-head { padding: 16px 18px; padding-top: calc(16px + env(safe-area-inset-top, 0px)); }
+  .drawer-body { padding: 16px 18px 80px; }
   .elements { grid-template-columns: 1fr; }
+  /* 日程时间轴 */
   .tl-name-col { width: 70px; min-width: 70px; font-size: 11px; }
   .tl-ruler .tl-hour { font-size: 9px; }
-  .schedule-grid { margin: 0 -14px; padding: 0 14px; }
+  .schedule-grid { margin: 0 -14px; padding: 0 14px; -webkit-overflow-scrolling: touch; }
+  /* 模态框适配 */
+  .modal { padding: 20px 16px; width: 100%; max-width: 92vw; }
+  .modal h3 { font-size: 15px; }
+  /* 操作按钮组自动换行 */
+  .actions { gap: 6px; }
+  .actions .btn { flex: 1; min-width: 0; text-align: center; }
+  /* Toast 适配安全区域 */
+  #toast { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); max-width: 85vw; text-align: center; }
+  /* 登录页适配 */
+  #login-page > div { padding: 24px 20px !important; width: 100% !important; max-width: 90vw !important; }
 }
 
 @media (max-width: 480px) {
   .kpi-grid { grid-template-columns: 1fr; }
-  .nav button { padding: 5px 8px; font-size: 11px; }
-  .btn { padding: 6px 12px; font-size: 13px; }
+  .nav button { padding: 7px 10px; font-size: 11px; }
+  .btn { padding: 8px 12px; font-size: 13px; }
   .performance-table { font-size: 11px; }
+  .page-title { font-size: 15px; }
+  .chart-box { height: 200px; }
+  .chart-box.tall { height: 220px; }
+  .drawer-section { padding: 12px 14px; }
+  .tl-block { font-size: 9px; height: 28px; }
+  .month-day { min-width: 60px; padding: 6px 8px; font-size: 10px; }
+}
+
+/* 横屏适配 */
+@media (max-width: 768px) and (orientation: landscape) {
+  .topbar { min-height: 40px; padding: 6px 14px; }
+  .nav button { padding: 5px 10px; }
+  .main { padding: 10px 14px; }
+  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+  .chart-box { height: 180px; }
+  .chart-box.tall { height: 200px; }
+}
+
+/* 高分辨率屏幕 1px 边框修正 */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .card, .kpi, .chart-card, .drawer-section {
+    border-width: 0.5px;
+  }
 }
 
 /* ========== 技能标签多选 ========== */
