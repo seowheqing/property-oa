@@ -246,6 +246,7 @@ app.post('/api/login', (req, res) => {
 app.post('/api/users', (req, res) => {
   const { phone, password, name, role } = req.body;
   if (!phone || !password || !name) return res.status(400).json({ error: '手机号、密码、姓名必填' });
+  if (!/^1[3-9]\d{9}$/.test(phone)) return res.status(400).json({ error: '手机号格式不正确（需为中国内地11位手机号）' });
   try {
     db.run('INSERT INTO users (phone, password, name, role) VALUES (?, ?, ?, ?)', [phone, password, name, role || 'worker']);
     saveDB();
