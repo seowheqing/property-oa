@@ -693,6 +693,100 @@ app.get('/api/report', (req, res) => {
   res.json({ success: true, from: fromStr, to: toStr, report, stats: { total: inRange.length, done: done.length, doing: doing.length, wait: wait.length, avgHours, onTimeRate } });
 });
 
+// ============ AI 报告解析接口（预留给秒懂） ============
+// POST /api/report/ai — 接收月报数据，返回AI分析建议
+// 秒懂调用此接口传入报告文本，返回AI生成的智能总结和建议
+app.post('/api/report/ai', async (req, res) => {
+  const { report, aiEndpoint, aiKey } = req.body;
+  if (!report) return res.status(400).json({ error: '缺少 report 文本' });
+
+  // 如果配置了AI接口则调用，否则原样返回
+  const AI_ENDPOINT = aiEndpoint || process.env.AI_API_URL || '';
+  const AI_KEY = aiKey || process.env.AI_API_KEY || '';
+
+  if (!AI_ENDPOINT) {
+    return res.json({ success: true, aiSummary: null, message: '未配置AI接口，返回原始报告', report });
+  }
+
+  try {
+    const aiResp = await fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AI_KEY}` },
+      body: JSON.stringify({
+        model: process.env.AI_MODEL || 'qwen-plus',
+        messages: [
+          { role: 'system', content: '你是物业管理专家。根据以下工单月报数据，给出智能分析总结：1.找出反复出现的问题和根因推测 2.给出具体改善建议 3.预测下月可能的高发问题。简洁有力，不超过300字。' },
+          { role: 'user', content: report }
+        ]
+      })
+    });
+    const aiData = await aiResp.json();
+    const aiSummary = aiData.choices?.[0]?.message?.content || aiData.output?.text || '解析失败';
+    res.json({ success: true, aiSummary, report });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message, report });
+  }
+});
+
+// ============ 图片上传接口 ============
+const multer = require('multer') || null;
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+// 简易文件上传（不依赖multer，用原生解析）
+app.post('/api/tickets/:id/photos', (req, res) => {
+  const ticketId = req.params.id;
+  const row = queryOne('SELECT * FROM tickets WHERE id = ?', [ticketId]);
+  if (!row) return res.status(404).json({ error: '工单不存在' });
+
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  req.on('end', () => {
+    try {
+      const data = JSON.parse(body);
+      // 接收 base64 图片或图片URL
+      const photos = data.photos || []; // [{url: "...", name: "..."}, ...]
+      if (!photos.length) return res.status(400).json({ error: '缺少 photos 数组' });
+
+      // 保存图片信息到数据库（存URL/路径）
+      // 扩展tickets表加photos字段（JSON字符串）
+      let existing = [];
+      try {
+        const ticket = rowToTicket(row);
+        existing = JSON.parse(ticket.message || '[]');
+        if (!Array.isArray(existing)) existing = [];
+      } catch(e) { existing = []; }
+
+      // 用单独的photos表或直接存在message里不合适，加一列
+      // 简化方案：存photos到一个单独的JSON文件
+      const photoFile = path.join(uploadDir, `${ticketId}.json`);
+      let savedPhotos = [];
+      if (fs.existsSync(photoFile)) {
+        try { savedPhotos = JSON.parse(fs.readFileSync(photoFile, 'utf-8')); } catch(e) {}
+      }
+      savedPhotos.push(...photos.map(p => ({ ...p, uploadedAt: new Date().toISOString() })));
+      fs.writeFileSync(photoFile, JSON.stringify(savedPhotos, null, 2));
+
+      res.json({ success: true, ticketId, totalPhotos: savedPhotos.length, photos: savedPhotos });
+    } catch (e) {
+      res.status(400).json({ error: '请求体解析失败: ' + e.message });
+    }
+  });
+});
+
+// GET /api/tickets/:id/photos — 获取工单照片列表
+app.get('/api/tickets/:id/photos', (req, res) => {
+  const ticketId = req.params.id;
+  const photoFile = path.join(uploadDir, `${ticketId}.json`);
+  if (!fs.existsSync(photoFile)) return res.json({ data: [] });
+  try {
+    const photos = JSON.parse(fs.readFileSync(photoFile, 'utf-8'));
+    res.json({ data: photos });
+  } catch(e) {
+    res.json({ data: [] });
+  }
+});
+
 // ============ 启动 ============
 initDB().then(() => {
   app.listen(PORT, () => {
