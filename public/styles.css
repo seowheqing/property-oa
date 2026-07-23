@@ -188,6 +188,12 @@ body {
   box-shadow: var(--shadow-card);
   padding: 20px;
   border: 1px solid var(--hairline);
+  transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+}
+.card:hover {
+  box-shadow: 0 8px 30px rgba(86, 69, 212, 0.08), 0 2px 8px rgba(0,0,0,0.04);
+  transform: translateY(-2px);
+  border-color: var(--primary-light);
 }
 
 /* ========== KPI ========== */
@@ -204,11 +210,12 @@ body {
   padding: 18px 20px;
   border: 1px solid var(--hairline);
   position: relative;
-  transition: box-shadow var(--transition), transform var(--transition);
+  transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
 }
 .kpi:hover {
-  box-shadow: var(--shadow);
-  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(86, 69, 212, 0.1), 0 2px 6px rgba(0,0,0,0.04);
+  transform: translateY(-3px);
+  border-color: var(--primary-light);
 }
 .kpi::before {
   content: "";
@@ -239,6 +246,12 @@ body {
   box-shadow: var(--shadow-sm);
   padding: 18px 20px;
   border: 1px solid var(--hairline);
+  transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+}
+.chart-card:hover {
+  box-shadow: 0 8px 24px rgba(86, 69, 212, 0.08), 0 2px 6px rgba(0,0,0,0.03);
+  transform: translateY(-2px);
+  border-color: var(--primary-light);
 }
 .chart-card h3 {
   font-size: 14px;
@@ -329,8 +342,8 @@ thead th {
   letter-spacing: .2px;
 }
 tbody td { padding: 10px 14px; border-bottom: 1px solid var(--hairline-soft); }
-tbody tr { cursor: pointer; transition: background var(--transition); }
-tbody tr:hover { background: var(--surface-soft); }
+tbody tr { cursor: pointer; transition: background 0.2s ease, box-shadow 0.2s ease; }
+tbody tr:hover { background: var(--primary-light); box-shadow: inset 3px 0 0 var(--primary); }
 .mono { font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace; font-size: 12px; color: var(--text-2); }
 
 /* ========== 状态标签（Notion 九色标签风格）========== */
