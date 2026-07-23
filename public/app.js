@@ -1404,7 +1404,6 @@ function showLoginPage(){
 }
 function doLogout(){
   localStorage.removeItem('login_user');
-  $('#app-main').style.display='none';
-  $('#login-page').style.display='flex';
+  showLoginPage();
   $('#login-phone').value='';$('#login-password').value='';$('#login-error').textContent='';
 }
