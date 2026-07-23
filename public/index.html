@@ -145,6 +145,7 @@
       <div class="page-sub">全部已处理完毕的工单归档</div>
       <div class="card">
         <div class="toolbar">
+          <input id="search-done" type="text" placeholder="搜索工单号..." style="width:140px" oninput="renderDone()">
           <select id="filter-type-done"><option value="">全部类型</option><option value="repair">报修</option><option value="complaint">投诉</option><option value="help">帮助/其他</option></select>
           <select id="filter-cat-done"></select>
           <span class="spacer"></span>

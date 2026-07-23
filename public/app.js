@@ -1108,6 +1108,9 @@ function renderDone(){
   var myName=roleWorkerName();
   if(currentRole.startsWith('worker_')&&myName) rows=rows.filter(t=>t.worker===myName);
   if(currentRole.startsWith('pm_keeper_')){var keeperName=currentRole.replace('pm_keeper_','');rows=rows.filter(t=>t.worker===keeperName);}
+  // 搜索工单号
+  var search=($('#search-done')||{}).value;
+  if(search)rows=rows.filter(t=>t.id.toLowerCase().includes(search.toLowerCase()));
   var ft=$('#filter-type-done').value;
   if(ft)rows=rows.filter(t=>t.type===ft);
   var fc=$('#filter-cat-done').value;
