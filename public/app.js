@@ -745,7 +745,7 @@ function saveStaff() {
   // 同步创建/更新登录账号
   if (phone && password) {
     if (!/^1[3-9]\d{9}$/.test(phone)) { toast('手机号格式不正确（需为中国内地11位）'); return; }
-    var userRole = data.role === '维修工' ? 'worker' : data.role === '物业管家' ? 'keeper' : 'worker';
+    var userRole = data.role === '维修工' ? 'worker' : data.role === '物业管家' ? 'keeper' : data.role === '主管' ? 'admin' : 'worker';
     fetch(API_BASE + '/api/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
