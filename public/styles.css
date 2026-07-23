@@ -187,6 +187,27 @@ input[type="number"] { -moz-appearance: textfield; }
   font-weight: 600;
 }
 
+.community-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.community-switch label { font-size: 11px; opacity: .65; }
+.community-switch select {
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  font-size: 12px;
+  background: rgba(255,255,255,.08);
+  color: #fff;
+  cursor: pointer;
+  max-width: 160px;
+  transition: border-color var(--transition);
+}
+.community-switch select:hover { border-color: rgba(255,255,255,.3); }
+.community-switch select option { color: var(--text); background: #fff; }
+
 .role-switch {
   display: flex;
   align-items: center;
@@ -700,6 +721,8 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
   }
   .role-switch { width: 100%; justify-content: flex-end; }
   .role-switch select { max-width: 130px; font-size: 12px; padding: 8px 10px; }
+  .community-switch { width: 100%; justify-content: flex-start; }
+  .community-switch select { max-width: 130px; font-size: 12px; padding: 8px 10px; }
   .main { padding: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
   .page-title { font-size: 17px; }
   .page-sub { font-size: 12px; margin-bottom: 14px; }

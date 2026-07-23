@@ -35,6 +35,11 @@
   <!-- ============ 顶部导航 + 角色切换 ============ -->
   <div class="topbar">
     <div class="logo">🏢 智慧物业 OA <span class="badge">工单协同管理</span></div>
+    <div class="community-switch">
+      <label>当前小区</label>
+      <select id="communitySelect"></select>
+      <button class="btn sm ghost" onclick="openCommunityModal()" title="管理小区">⚙️</button>
+    </div>
     <nav class="nav">
       <button class="active" data-page="dashboard">📊 看板</button>
       <button data-page="repair">🔧 报修工单</button>
@@ -267,6 +272,25 @@
       <div class="modal-foot">
         <button class="btn gray" onclick="closeStaffModal()">取消</button>
         <button class="btn" onclick="saveStaff()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 小区管理模态框 ============ -->
+  <div class="modal-mask" id="communityModal">
+    <div class="modal" style="max-width:520px">
+      <h3>小区管理</h3>
+      <div class="form-row">
+        <label>现有小区</label>
+        <div id="community-list" style="max-height:200px;overflow-y:auto;margin-bottom:12px"></div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+      <h4 style="margin-bottom:8px">新增小区</h4>
+      <div class="form-row"><label>小区名称</label><input id="f-community-name" placeholder="如：阳光花园"></div>
+      <div class="form-row"><label>地址（选填）</label><input id="f-community-addr" placeholder="如：XX路XX号"></div>
+      <div class="modal-foot">
+        <button class="btn gray" onclick="closeCommunityModal()">关闭</button>
+        <button class="btn" onclick="addCommunity()">新增</button>
       </div>
     </div>
   </div>

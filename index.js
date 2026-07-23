@@ -136,7 +136,18 @@ async function initDB() {
       finished TEXT DEFAULT '',
       reject_reason TEXT DEFAULT '',
       estimated_hours REAL DEFAULT 0,
-      session_id TEXT DEFAULT ''
+      session_id TEXT DEFAULT '',
+      community_id TEXT DEFAULT 'default'
+    )
+  `);
+
+  // 小区表
+  db.run(`
+    CREATE TABLE IF NOT EXISTS communities (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      address TEXT DEFAULT '',
+      created TEXT NOT NULL
     )
   `);
 
@@ -145,6 +156,19 @@ async function initDB() {
     db.run(`ALTER TABLE tickets ADD COLUMN session_id TEXT DEFAULT ''`);
   } catch (e) {
     // 列已存在，忽略
+  }
+
+  // 兼容旧数据库：如果 community_id 列不存在则添加
+  try {
+    db.run(`ALTER TABLE tickets ADD COLUMN community_id TEXT DEFAULT 'default'`);
+  } catch (e) {
+    // 列已存在，忽略
+  }
+
+  // 确保至少有一个默认小区
+  const defaultCommunity = queryOne("SELECT id FROM communities WHERE id = 'default'");
+  if (!defaultCommunity) {
+    db.run("INSERT INTO communities (id, name, address, created) VALUES ('default', '默认小区', '', ?)", [new Date().toISOString()]);
   }
 
   // 用户表（登录用）
@@ -196,7 +220,8 @@ function rowToTicket(row) {
     finished: row.finished || null,
     rejectReason: row.reject_reason || '',
     estimated_hours: row.estimated_hours || 0,
-    sessionId: row.session_id || ''
+    sessionId: row.session_id || '',
+    community_id: row.community_id || 'default'
   };
 }
 
@@ -231,6 +256,53 @@ app.post('/api/users', (req, res) => {
   }
 });
 
+// ============ 小区管理接口 ============
+// GET /api/communities — 获取所有小区
+app.get('/api/communities', (req, res) => {
+  const communities = queryAll('SELECT * FROM communities ORDER BY created ASC');
+  res.json({ data: communities });
+});
+
+// POST /api/communities — 创建小区
+app.post('/api/communities', (req, res) => {
+  const { name, address } = req.body;
+  if (!name) return res.status(400).json({ error: '小区名称必填' });
+  const id = 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const now = new Date().toISOString();
+  try {
+    db.run('INSERT INTO communities (id, name, address, created) VALUES (?, ?, ?, ?)', [id, name, address || '', now]);
+    saveDB();
+    res.json({ success: true, community: { id, name, address: address || '', created: now } });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// PATCH /api/communities/:id — 更新小区
+app.patch('/api/communities/:id', (req, res) => {
+  const { name, address } = req.body;
+  const sets = [], values = [];
+  if (name !== undefined) { sets.push('name = ?'); values.push(name); }
+  if (address !== undefined) { sets.push('address = ?'); values.push(address); }
+  if (!sets.length) return res.status(400).json({ error: '无更新字段' });
+  values.push(req.params.id);
+  db.run(`UPDATE communities SET ${sets.join(', ')} WHERE id = ?`, values);
+  saveDB();
+  const row = queryOne('SELECT * FROM communities WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).json({ error: '小区不存在' });
+  res.json({ success: true, community: row });
+});
+
+// DELETE /api/communities/:id — 删除小区
+app.delete('/api/communities/:id', (req, res) => {
+  if (req.params.id === 'default') return res.status(400).json({ error: '默认小区不能删除' });
+  // 将该小区下的工单移入默认小区
+  db.run("UPDATE tickets SET community_id = 'default' WHERE community_id = ?", [req.params.id]);
+  db.run('DELETE FROM communities WHERE id = ?', [req.params.id]);
+  saveDB();
+  res.json({ success: true });
+});
+
 // GET /api/users — 获取所有用户
 app.get('/api/users', (req, res) => {
   const users = queryAll('SELECT id, phone, name, role FROM users');
@@ -244,9 +316,15 @@ app.delete('/api/users/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// GET /api/tickets
+// GET /api/tickets — 支持 ?community_id= 按小区筛选
 app.get('/api/tickets', (req, res) => {
-  const rows = queryAll('SELECT * FROM tickets ORDER BY created DESC');
+  const communityId = req.query.community_id;
+  let rows;
+  if (communityId) {
+    rows = queryAll('SELECT * FROM tickets WHERE community_id = ? ORDER BY created DESC', [communityId]);
+  } else {
+    rows = queryAll('SELECT * FROM tickets ORDER BY created DESC');
+  }
   res.json({ data: rows.map(rowToTicket) });
 });
 
@@ -273,11 +351,12 @@ app.post('/api/tickets', (req, res) => {
     id = 'WX' + String(maxNum + 1).padStart(4, '0');
   }
   const now = t.created || new Date().toISOString();
+  const communityId = t.community_id || 'default';
   try {
     db.run(
-      `INSERT INTO tickets (id, type, cat, desc, loc, priority, status, worker, message, created, estimated_hours, session_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, t.type || 'repair', t.cat || '其他', t.desc || '', t.loc || '', t.priority || 'normal', t.status || 'wait', t.worker || '', t.message || '', now, t.estimated_hours || 0, t.sessionId || '']
+      `INSERT INTO tickets (id, type, cat, desc, loc, priority, status, worker, message, created, estimated_hours, session_id, community_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, t.type || 'repair', t.cat || '其他', t.desc || '', t.loc || '', t.priority || 'normal', t.status || 'wait', t.worker || '', t.message || '', now, t.estimated_hours || 0, t.sessionId || '', communityId]
     );
     saveDB();
     const row = queryOne('SELECT * FROM tickets WHERE id = ?', [id]);
@@ -297,7 +376,7 @@ app.post('/api/tickets', (req, res) => {
 // PATCH /api/tickets/:id — 更新工单
 app.patch('/api/tickets/:id', async (req, res) => {
   const updates = req.body;
-  const allowed = { status: 'status', worker: 'worker', priority: 'priority', finished: 'finished', reject_reason: 'reject_reason', rejectReason: 'reject_reason', estimated_hours: 'estimated_hours', cat: 'cat', loc: 'loc', desc: 'desc', message: 'message', sessionId: 'session_id' };
+  const allowed = { status: 'status', worker: 'worker', priority: 'priority', finished: 'finished', reject_reason: 'reject_reason', rejectReason: 'reject_reason', estimated_hours: 'estimated_hours', cat: 'cat', loc: 'loc', desc: 'desc', message: 'message', sessionId: 'session_id', community_id: 'community_id' };
   const sets = [];
   const values = [];
 
@@ -606,9 +685,15 @@ app.get('/api/sla/alert', async (req, res) => {
 app.get('/api/report', (req, res) => {
   const from = req.query.from || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const to = req.query.to || new Date().toISOString();
+  const communityId = req.query.community_id;
   const fromDate = new Date(from);
   const toDate = new Date(to);
-  const all = queryAll("SELECT * FROM tickets").map(rowToTicket);
+  let all;
+  if (communityId) {
+    all = queryAll("SELECT * FROM tickets WHERE community_id = ?", [communityId]).map(rowToTicket);
+  } else {
+    all = queryAll("SELECT * FROM tickets").map(rowToTicket);
+  }
   const inRange = all.filter(t => new Date(t.created) >= fromDate && new Date(t.created) <= toDate);
 
   const repairs = inRange.filter(t => t.type === 'repair');
