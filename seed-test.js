@@ -84,6 +84,49 @@ async function seed() {
   console.log('已完成:', tickets.filter(t=>t.status==='done').length);
   console.log('处理中:', tickets.filter(t=>t.status==='doing').length);
   console.log('待派单:', tickets.filter(t=>t.status==='wait').length);
+
+  // ===== 复发工单测试 =====
+  // 先创建一条历史已完成工单（302 水压低），再创建一条同地址同问题的新工单，预期触发复发标记
+  console.log('\n--- 复发工单测试 ---');
+  const recurTickets = [
+    {id:"WX9001", type:"repair", cat:"水暖", desc:"302室水压低洗澡没水", loc:"3号楼-1单元-302室", priority:"normal", status:"done", worker:"张师傅", message:"水压好低", created: daysAgo(10, 9, 0), finished: daysAgo(10, 12, 0)},
+  ];
+  for (const rt of recurTickets) {
+    try {
+      const r = await fetch(BASE + '/api/tickets', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(rt) });
+      const d = await r.json();
+      if (d.success) {
+        if (rt.finished) await fetch(BASE + '/api/tickets/' + rt.id, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({status:'done', finished: rt.finished}) });
+        console.log('OK 历史工单:', rt.id, d.action || 'created');
+      } else { console.error('FAIL:', rt.id, d.error); }
+    } catch(e) { console.error('ERR:', rt.id, e.message); }
+  }
+  // 现在再次创建同一地址同事件的工单，应返回 created_recurring
+  try {
+    const r = await fetch(BASE + '/api/tickets', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({type:"repair", cat:"水暖", desc:"302室水压又低了", loc:"3号楼-1单元-302室", priority:"normal", message:"水压又变低了"}) });
+    const d = await r.json();
+    console.log('复发识别结果:', d.action, '| repeatOf:', d.record && d.record.repeatOf, '| repeatCount:', d.record && d.record.repeatCount, '| priority:', d.record && d.record.priority);
+    if (d.action === 'created_recurring') console.log('✅ 复发识别正确');
+    else console.log('⚠️ 期望 created_recurring，实际', d.action);
+  } catch(e) { console.error('复发测试失败:', e.message); }
+
+  // 重复反馈测试：立即再次发同一条，应返回 merged
+  try {
+    const r = await fetch(BASE + '/api/tickets', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({type:"repair", cat:"水暖", desc:"302水压低", loc:"3号楼-1单元-302室", priority:"normal", message:"我也是302水压低"}) });
+    const d = await r.json();
+    console.log('重复合并结果:', d.action, '| mergedInto:', d.mergedInto, '| feedbackCount:', d.record && d.record.feedbackCount);
+    if (d.action === 'merged') console.log('✅ 重复合并正确');
+    else console.log('⚠️ 期望 merged，实际', d.action);
+  } catch(e) { console.error('重复测试失败:', e.message); }
+
+  // 跨地址不误判测试：同类别不同地址，应返回 created
+  try {
+    const r = await fetch(BASE + '/api/tickets', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({type:"repair", cat:"水暖", desc:"501室水压低", loc:"5号楼-2单元-501室", priority:"normal", message:"我家水压也低"}) });
+    const d = await r.json();
+    console.log('不同地址结果:', d.action);
+    if (d.action === 'created') console.log('✅ 不同地址不误判');
+    else console.log('⚠️ 期望 created，实际', d.action);
+  } catch(e) { console.error('跨地址测试失败:', e.message); }
 }
 
 seed();

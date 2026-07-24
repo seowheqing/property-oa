@@ -137,7 +137,13 @@ async function initDB() {
       reject_reason TEXT DEFAULT '',
       estimated_hours REAL DEFAULT 0,
       session_id TEXT DEFAULT '',
-      community_id TEXT DEFAULT 'default'
+      community_id TEXT DEFAULT 'default',
+      repeat_key TEXT DEFAULT '',
+      repeat_of TEXT DEFAULT '',
+      repeat_count INTEGER DEFAULT 1,
+      is_recurring INTEGER DEFAULT 0,
+      recurrence_note TEXT DEFAULT '',
+      feedback_count INTEGER DEFAULT 1
     )
   `);
 
@@ -164,6 +170,20 @@ async function initDB() {
   } catch (e) {
     // 列已存在，忽略
   }
+
+  // 兼容旧数据库：补充重复反馈与复发问题识别字段
+  const recurrenceMigrations = [
+    `ALTER TABLE tickets ADD COLUMN repeat_key TEXT DEFAULT ''`,
+    `ALTER TABLE tickets ADD COLUMN repeat_of TEXT DEFAULT ''`,
+    `ALTER TABLE tickets ADD COLUMN repeat_count INTEGER DEFAULT 1`,
+    `ALTER TABLE tickets ADD COLUMN is_recurring INTEGER DEFAULT 0`,
+    `ALTER TABLE tickets ADD COLUMN recurrence_note TEXT DEFAULT ''`,
+    `ALTER TABLE tickets ADD COLUMN feedback_count INTEGER DEFAULT 1`
+  ];
+  recurrenceMigrations.forEach(sql => {
+    try { db.run(sql); } catch (e) { /* 列已存在，忽略 */ }
+  });
+  db.run(`CREATE INDEX IF NOT EXISTS idx_tickets_recurrence ON tickets (community_id, repeat_key, created)`);
 
   // 确保至少有一个默认小区
   const defaultCommunity = queryOne("SELECT id FROM communities WHERE id = 'default'");
@@ -221,8 +241,76 @@ function rowToTicket(row) {
     rejectReason: row.reject_reason || '',
     estimated_hours: row.estimated_hours || 0,
     sessionId: row.session_id || '',
-    community_id: row.community_id || 'default'
+    community_id: row.community_id || 'default',
+    repeatOf: row.repeat_of || '',
+    repeatCount: Number(row.repeat_count) || 1,
+    isRecurring: Boolean(Number(row.is_recurring)),
+    recurrenceNote: row.recurrence_note || '',
+    feedbackCount: Number(row.feedback_count) || 1
   };
+}
+
+const DUPLICATE_WINDOW_MS = 15 * 60 * 1000;
+const RECURRENCE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+const ISSUE_SIGNATURE_RULES = [
+  ['water-pressure', /水压|供水压力|压力不足|水流(?:太小|很小|小)/],
+  ['water-leak', /漏水|渗水|爆管|水管爆|管道破裂/],
+  ['water-outage', /停水|断水|没水|无水/],
+  ['drain-blocked', /堵塞|下水不畅|排水不畅/],
+  ['heating', /暖气|供暖/],
+  ['power-outage', /停电|断电|没电|跳闸/],
+  ['lighting', /照明|灯(?:不亮|坏了|熄灭)/],
+  ['elevator', /电梯/],
+  ['door-lock', /门锁|锁芯/],
+  ['noise', /噪音|扰民|异响/],
+  ['garbage', /垃圾|恶臭|异味/],
+  ['fire-access', /消防通道|疏散通道/],
+  ['parking', /车位|停车/]
+];
+
+function normalizeRepeatValue(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\s\-—_，,。.!！?？、/\\:：;；()（）【】\[\]]/g, '');
+}
+
+function normalizeRepeatLocation(value) {
+  return normalizeRepeatValue(value)
+    .replace(/(\d+)(?:栋|幢)/g, '$1号楼')
+    .replace(/(\d+)(?:号房|房间|室)/g, '$1');
+}
+
+function identifyIssueSignature(cat, desc, message) {
+  const text = normalizeRepeatValue(`${cat || ''}${desc || ''}${message || ''}`);
+  const rule = ISSUE_SIGNATURE_RULES.find(([, pattern]) => pattern.test(text));
+  return rule ? rule[0] : '';
+}
+
+function buildRepeatKey(type, cat, loc) {
+  const normalizedType = normalizeRepeatValue(type);
+  const normalizedCat = normalizeRepeatValue(cat);
+  const normalizedLoc = normalizeRepeatLocation(loc);
+  if (!normalizedCat || !normalizedLoc) return '';
+  return `${normalizedType}|${normalizedCat}|${normalizedLoc}`;
+}
+
+function getRepeatMatches(communityId, repeatKey, issueSignature) {
+  if (!repeatKey) return [];
+  return queryAll('SELECT * FROM tickets WHERE community_id = ? ORDER BY created DESC', [communityId])
+    .filter(row => {
+      const rowKey = row.repeat_key || buildRepeatKey(row.type, row.cat, row.loc);
+      if (rowKey !== repeatKey) return false;
+      const rowSignature = identifyIssueSignature(row.cat, row.desc, row.message);
+      return !issueSignature || !rowSignature || rowSignature === issueSignature;
+    });
+}
+
+function raiseRecurringPriority(priority) {
+  if (priority === 'low') return 'normal';
+  if (priority === 'normal') return 'high';
+  return priority || 'high';
 }
 
 // ============ Express ============
@@ -329,14 +417,16 @@ app.get('/api/tickets', (req, res) => {
   res.json({ data: rows.map(rowToTicket) });
 });
 
-// GET /api/tickets/:id
+// GET /api/tickets/:id（可用 community_id 约束小区范围）
 app.get('/api/tickets/:id', (req, res) => {
-  const row = queryOne('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
+  const row = req.query.community_id
+    ? queryOne('SELECT * FROM tickets WHERE id = ? AND community_id = ?', [req.params.id, req.query.community_id])
+    : queryOne('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: '工单不存在' });
   res.json({ data: rowToTicket(row) });
 });
 
-// POST /api/tickets — 创建工单
+// POST /api/tickets — 创建工单，并识别短时重复反馈与历史复发问题
 app.post('/api/tickets', (req, res) => {
   const t = req.body;
   // id 不再是必传参数，如未传或传入无效值则自动生成顺序工单号
@@ -351,24 +441,77 @@ app.post('/api/tickets', (req, res) => {
     const maxNum = maxRow ? parseInt(maxRow.id.replace('WX', '')) || 0 : 0;
     id = 'WX' + String(maxNum + 1).padStart(4, '0');
   }
+
   const now = t.created || new Date().toISOString();
+  const createdMs = Number.isFinite(Date.parse(now)) ? Date.parse(now) : Date.now();
   const communityId = t.community_id || 'default';
+  const type = t.type || 'repair';
+  const cat = t.cat || '其他';
+  const loc = t.loc || '';
+  const repeatKey = buildRepeatKey(type, cat, loc);
+  const issueSignature = identifyIssueSignature(cat, t.desc, t.message);
+  const matches = getRepeatMatches(communityId, repeatKey, issueSignature);
+
+  // 15 分钟内同小区、同地址、同事件且问题特征一致：视为多人反馈同一问题，合并到原工单。
+  const recentOpen = matches.find(row => {
+    const delta = createdMs - Date.parse(row.created);
+    return row.status !== 'done' && Number.isFinite(delta) && delta >= 0 && delta <= DUPLICATE_WINDOW_MS;
+  });
+  if (recentOpen) {
+    const feedbackCount = (Number(recentOpen.feedback_count) || 1) + 1;
+    db.run('UPDATE tickets SET feedback_count = ?, repeat_key = ? WHERE id = ?', [feedbackCount, repeatKey, recentOpen.id]);
+    saveDB();
+    const mergedTicket = rowToTicket(queryOne('SELECT * FROM tickets WHERE id = ?', [recentOpen.id]));
+    const estimate = estimateNextAvailable();
+    const estimateMsg = estimate.minutes === 0
+      ? `当前有 ${estimate.workers.length} 名空闲师傅（${estimate.workers.join('、')}），可立即响应`
+      : `当前师傅均在处理中，预计 ${estimate.workers[0]} 最快约 ${estimate.minutes} 分钟后可接单`;
+    return res.json({
+      success: true,
+      action: 'merged',
+      merged: true,
+      mergedInto: recentOpen.id,
+      matchedTicketId: recentOpen.id,
+      record: mergedTicket,
+      estimate: { freeWorkers: estimate.workers, minutesUntilAvailable: estimate.minutes, message: estimateMsg }
+    });
+  }
+
+  // 近 30 天同类问题曾经完成后再次出现：新建工单、关联最近历史工单并提升一级优先级。
+  const completedMatches = matches.filter(row => {
+    const delta = createdMs - Date.parse(row.created);
+    return row.status === 'done' && Number.isFinite(delta) && delta >= 0 && delta <= RECURRENCE_WINDOW_MS;
+  });
+  const repeatOf = completedMatches.length ? completedMatches[0].id : '';
+  const repeatCount = completedMatches.length + 1;
+  const isRecurring = Boolean(repeatOf);
+  const recurrenceNote = isRecurring
+    ? `该位置近30天已发生同类问题 ${repeatCount} 次，可能存在系统性故障，请结合历史工单 ${repeatOf} 排查根因。`
+    : '';
+  const priority = isRecurring ? raiseRecurringPriority(t.priority || 'normal') : (t.priority || 'normal');
+
   try {
     db.run(
-      `INSERT INTO tickets (id, type, cat, desc, loc, priority, status, worker, message, created, estimated_hours, session_id, community_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, t.type || 'repair', t.cat || '其他', t.desc || '', t.loc || '', t.priority || 'normal', t.status || 'wait', t.worker || '', t.message || '', now, t.estimated_hours || 0, t.sessionId || '', communityId]
+      `INSERT INTO tickets (id, type, cat, desc, loc, priority, status, worker, message, created, estimated_hours, session_id, community_id, repeat_key, repeat_of, repeat_count, is_recurring, recurrence_note, feedback_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, type, cat, t.desc || '', loc, priority, t.status || 'wait', t.worker || '', t.message || '', now, t.estimated_hours || 0, t.sessionId || '', communityId, repeatKey, repeatOf, repeatCount, isRecurring ? 1 : 0, recurrenceNote, 1]
     );
     saveDB();
     const row = queryOne('SELECT * FROM tickets WHERE id = ?', [id]);
     const ticket = rowToTicket(row);
     // 计算预估最快接单时间
     const estimate = estimateNextAvailable();
-    const estimateMsg = estimate.minutes === 0 
-      ? `当前有 ${estimate.workers.length} 名空闲师傅（${estimate.workers.join('、')}），可立即响应` 
+    const estimateMsg = estimate.minutes === 0
+      ? `当前有 ${estimate.workers.length} 名空闲师傅（${estimate.workers.join('、')}），可立即响应`
       : `当前师傅均在处理中，预计 ${estimate.workers[0]} 最快约 ${estimate.minutes} 分钟后可接单`;
 
-    res.json({ success: true, record: ticket, estimate: { freeWorkers: estimate.workers, minutesUntilAvailable: estimate.minutes, message: estimateMsg } });
+    res.json({
+      success: true,
+      action: isRecurring ? 'created_recurring' : 'created',
+      recurrent: isRecurring,
+      record: ticket,
+      estimate: { freeWorkers: estimate.workers, minutesUntilAvailable: estimate.minutes, message: estimateMsg }
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

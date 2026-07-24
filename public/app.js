@@ -533,7 +533,18 @@ function isOnTime(t) { var h = durHours(t.created, t.finished); return h != null
 function activeStaff(role) { return state.staff.filter(s => s.role === role && s.status !== 'off'); }
 
 function enhanceState() {
-  state.tickets.forEach(t => { t.priority = t.priority || inferPriority(t); t.rejectHistory = t.rejectHistory || []; t.steps = t.steps || []; t.photos = t.photos || []; t.aggregated = t.aggregated || []; });
+  state.tickets.forEach(t => {
+    t.priority = t.priority || inferPriority(t);
+    t.rejectHistory = t.rejectHistory || [];
+    t.steps = t.steps || [];
+    t.photos = t.photos || [];
+    t.aggregated = t.aggregated || [];
+    t.repeatOf = t.repeatOf || '';
+    t.repeatCount = Number(t.repeatCount) || 1;
+    t.isRecurring = Boolean(t.isRecurring);
+    t.recurrenceNote = t.recurrenceNote || '';
+    t.feedbackCount = Number(t.feedbackCount) || 1;
+  });
 }
 
 function setupEnhancedUI() {
@@ -558,6 +569,23 @@ function initFilters(type) {
   $(`#filter-priority-${type}`).innerHTML = '<option value="">全部优先级</option>' + Object.entries(PRIORITY_LABEL).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
   [`filter-cat-${type}`,`filter-status-${type}`,`filter-priority-${type}`,`sort-${type}`].forEach(id => $('#' + id).onchange = () => renderTickets(type));
 }
+function recurrenceBadges(t) {
+  var badges = '';
+  if (t.isRecurring) badges += `<span class="recurrence-badge">复发 ×${t.repeatCount || 2}</span>`;
+  if ((t.feedbackCount || 1) > 1) badges += `<span class="feedback-badge">多人反馈 ×${t.feedbackCount}</span>`;
+  return badges ? `<div class="ticket-badges">${badges}</div>` : '';
+}
+
+function recurrenceAlert(t) {
+  if (t.isRecurring) {
+    return `<div class="recurrence-alert"><div class="recurrence-alert-icon">⚠️</div><div><b>复发问题提醒</b><p>${esc(t.recurrenceNote || `该位置近期再次发生“${t.cat}”，可能存在系统性故障。`)}</p>${t.repeatOf ? `<button type="button" class="recurrence-history-link" id="recurrence-history-link" data-ticket-id="${esc(t.repeatOf)}">查看历史工单 ${esc(t.repeatOf)}</button>` : ''}</div></div>`;
+  }
+  if ((t.feedbackCount || 1) > 1) {
+    return `<div class="feedback-alert"><b>多人重复反馈：</b>15 分钟内已有 ${t.feedbackCount} 位居民反馈同一问题，请优先核实影响范围。</div>`;
+  }
+  return '';
+}
+
 function renderTickets(type) {
   var tbody = $(`#tbody-${type}`); if (!tbody) return;
   var rows = state.tickets.filter(t => t.type === type && t.status !== 'done');
@@ -570,7 +598,7 @@ function renderTickets(type) {
   rows.sort((a,b) => sort==='newest' ? new Date(b.created)-new Date(a.created) : sort==='oldest' ? new Date(a.created)-new Date(b.created) : (PRIORITY_ORDER[b.priority]-PRIORITY_ORDER[a.priority] || new Date(a.created)-new Date(b.created)));
   $(`#count-${type}`).textContent=`共 ${rows.length} 张工单`;
   if(!rows.length){tbody.innerHTML='<tr><td colspan="8" class="empty">暂无符合条件的工单</td></tr>';return;}
-  tbody.innerHTML=rows.map(t=>{var h=durHours(t.created,t.finished||new Date().toISOString())||0;return `<tr class="ticket-row-${t.priority}" onclick="openDrawer('${t.id}')"><td>${priorityHtml(t.priority)}</td><td class="mono">${esc(t.id)}</td><td>${esc(t.loc)}</td><td><span class="tag cat">${esc(t.cat)}</span></td><td><span class="tag ${STATUS_CLASS[t.status]}">${STATUS_LABEL[t.status]}</span></td><td>${t.worker?avatar(t.worker,staffColor(t.worker))+esc(t.worker):'<span style="color:#aaa">待指派</span>'}</td><td class="mono">${fmtTime(t.created)}</td><td><span class="wait-age ${t.status!=='done'&&h>ticketSla(t)?'overdue':''}">${t.status==='done'?'处理用时':'已等待'} ${ageLabel(t)}</span></td></tr>`}).join('');
+  tbody.innerHTML=rows.map(t=>{var h=durHours(t.created,t.finished||new Date().toISOString())||0;return `<tr class="ticket-row-${t.priority}" onclick="openDrawer('${t.id}')"><td>${priorityHtml(t.priority)}</td><td class="mono"><div>${esc(t.id)}</div>${recurrenceBadges(t)}</td><td>${esc(t.loc)}</td><td><span class="tag cat">${esc(t.cat)}</span></td><td><span class="tag ${STATUS_CLASS[t.status]}">${STATUS_LABEL[t.status]}</span></td><td>${t.worker?avatar(t.worker,staffColor(t.worker))+esc(t.worker):'<span style="color:#aaa">待指派</span>'}</td><td class="mono">${fmtTime(t.created)}</td><td><span class="wait-age ${t.status!=='done'&&h>ticketSla(t)?'overdue':''}">${t.status==='done'?'处理用时':'已等待'} ${ageLabel(t)}</span></td></tr>`}).join('');
 }
 
 function hint(text) { return `<div class="hint">ℹ️ ${esc(text)}</div>`; }
@@ -581,8 +609,11 @@ function openDrawer(id) {
   var rejects=(t.rejectHistory||[]).map(r=>`<div class="reject-history"><b>驳回：</b>${esc(r.reason)} · ${esc(r.who)} · ${fmtTime(r.time)}</div>`).join('');
   var timeline=(t.steps||[]).map((s,i)=>`<div class="tl-item ${i===t.steps.length-1&&t.status!=='done'?'current':'done'}"><div class="dot"></div><div class="tl-title">${esc(s.title)}</div><div class="tl-meta">${esc(s.who)} · ${fmtTime(s.time)}</div></div>`).join('');
   var photos='<div id="drawer-photos" style="color:#aaa;font-size:13px">加载照片中...</div>';
-  $('#drawer-body').innerHTML=`<div class="drawer-section"><h4>工单信息</h4><div class="elements"><div class="elem"><div class="k">优先级</div><div class="v">${priorityHtml(t.priority)}</div></div><div class="elem"><div class="k">事件类别</div><div class="v">${esc(typeLabel(t))} · ${esc(t.cat)}</div></div><div class="elem"><div class="k">地点</div><div class="v">${esc(t.loc)}</div></div><div class="elem"><div class="k">已等待/处理</div><div class="v">${ageLabel(t)}</div></div><div class="elem full"><div class="k">问题描述</div><div class="v">${esc(t.desc)}</div></div></div>${rejects}</div><div class="drawer-section"><h4>流转时间线</h4><div class="timeline">${timeline}</div></div><div class="drawer-section"><h4>现场材料</h4>${photos}</div><div class="drawer-section"><h4>操作（当前角色：${esc(roleObj().name)}）</h4><div class="actions">${buildActions(t)}</div></div>`;
+  var repeatAlert=recurrenceAlert(t);
+  $('#drawer-body').innerHTML=`${repeatAlert}<div class="drawer-section"><h4>工单信息</h4><div class="elements"><div class="elem"><div class="k">优先级</div><div class="v">${priorityHtml(t.priority)}</div></div><div class="elem"><div class="k">事件类别</div><div class="v">${esc(typeLabel(t))} · ${esc(t.cat)}</div></div><div class="elem"><div class="k">地点</div><div class="v">${esc(t.loc)}</div></div><div class="elem"><div class="k">已等待/处理</div><div class="v">${ageLabel(t)}</div></div><div class="elem full"><div class="k">问题描述</div><div class="v">${esc(t.desc)}</div></div></div>${rejects}</div><div class="drawer-section"><h4>流转时间线</h4><div class="timeline">${timeline}</div></div><div class="drawer-section"><h4>现场材料</h4>${photos}</div><div class="drawer-section"><h4>操作（当前角色：${esc(roleObj().name)}）</h4><div class="actions">${buildActions(t)}</div></div>`;
   $('#drawerMask').classList.add('open'); $('#drawer').classList.add('open');
+  var historyLink=$('#recurrence-history-link');
+  if(historyLink) historyLink.onclick=function(){openDrawer(historyLink.dataset.ticketId);};
   loadDrawerPhotos(id);
 }
 function buildActions(t) {
@@ -744,7 +775,7 @@ function renderDone(){
   rows.sort((a,b)=>new Date(b.finished||b.created)-new Date(a.finished||a.created));
   $('#count-done').textContent='共 '+rows.length+' 张已完成';
   if(!rows.length){tbody.innerHTML='<tr><td colspan="8" class="empty">暂无已完成工单</td></tr>';return;}
-  tbody.innerHTML=rows.map(t=>`<tr onclick="openDrawer('${t.id}')" style="cursor:pointer"><td class="mono">${esc(t.id)}</td><td>${esc(typeLabel(t))}</td><td><span class="tag cat">${esc(t.cat)}</span></td><td>${esc(t.loc)}</td><td>${t.worker?avatar(t.worker,staffColor(t.worker))+esc(t.worker):'—'}</td><td class="mono">${fmtTime(t.created)}</td><td class="mono">${fmtTime(t.finished)}</td><td>${durHours(t.created,t.finished)?durHours(t.created,t.finished)+'h':'—'}</td></tr>`).join('');
+  tbody.innerHTML=rows.map(t=>`<tr onclick="openDrawer('${t.id}')" style="cursor:pointer"><td class="mono"><div>${esc(t.id)}</div>${recurrenceBadges(t)}</td><td>${esc(typeLabel(t))}</td><td><span class="tag cat">${esc(t.cat)}</span></td><td>${esc(t.loc)}</td><td>${t.worker?avatar(t.worker,staffColor(t.worker))+esc(t.worker):'—'}</td><td class="mono">${fmtTime(t.created)}</td><td class="mono">${fmtTime(t.finished)}</td><td>${durHours(t.created,t.finished)?durHours(t.created,t.finished)+'h':'—'}</td></tr>`).join('');
 }
 function initDoneFilters(){
   var catSel=$('#filter-cat-done');

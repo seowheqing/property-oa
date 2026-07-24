@@ -855,3 +855,23 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
   box-shadow: 0 0 0 3px rgba(86,69,212,.1);
 }
 .modal-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+/* 重复反馈与复发工单 */
+.ticket-badges { display:flex; flex-wrap:wrap; gap:4px; margin-top:5px; }
+.recurrence-badge,
+.feedback-badge { display:inline-flex; align-items:center; width:max-content; padding:2px 7px; border-radius:999px; font-family:var(--font-sans, sans-serif); font-size:11px; font-weight:700; line-height:1.4; white-space:nowrap; }
+.recurrence-badge { color:#9f1239; background:#fff1f2; border:1px solid #fecdd3; }
+.feedback-badge { color:#92400e; background:#fffbeb; border:1px solid #fde68a; }
+.recurrence-alert,
+.feedback-alert { margin:0 0 14px; border-radius:10px; font-size:13px; line-height:1.65; }
+.recurrence-alert { display:flex; gap:11px; padding:14px; color:#881337; background:#fff1f2; border:1px solid #fda4af; box-shadow:0 1px 2px rgba(159,18,57,.06); }
+.recurrence-alert-icon { flex:0 0 auto; font-size:20px; line-height:1.35; }
+.recurrence-alert b { font-size:14px; }
+.recurrence-alert p { margin:3px 0 8px; }
+.feedback-alert { padding:11px 13px; color:#78350f; background:#fffbeb; border:1px solid #fde68a; }
+.recurrence-history-link { padding:4px 9px; color:#9f1239; background:#fff; border:1px solid #fda4af; border-radius:6px; cursor:pointer; font:inherit; font-weight:600; }
+.recurrence-history-link:hover { background:#ffe4e6; }
+@media (max-width: 640px) {
+  .recurrence-alert { padding:12px; }
+  .ticket-badges { min-width:92px; }
+}
