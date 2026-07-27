@@ -1048,7 +1048,13 @@ function renderAll(){['repair','complaint','help'].forEach(renderTickets);render
 
 function updateNavBadges() {
   var counts = { repair: 0, complaint: 0, help: 0 };
-  state.tickets.forEach(function(t) { if (t.status === 'wait' && counts[t.type] !== undefined) counts[t.type]++; });
+  var isLead = currentRole === 'eng_lead';
+  var myName = roleWorkerName() || currentRole.replace('pm_keeper_', '');
+  state.tickets.forEach(function(t) {
+    if (t.status !== 'wait' || counts[t.type] === undefined) return;
+    if (isLead) { counts[t.type]++; }
+    else { if (t.worker === myName) counts[t.type]++; }
+  });
   $$('.nav button').forEach(function(btn) {
     var page = btn.dataset.page;
     if (counts[page] !== undefined) {
