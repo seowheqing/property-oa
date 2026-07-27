@@ -83,23 +83,7 @@ async function apiPatch(recordId, updates) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
     });
-  } catch(e) { console.warn('写回飞书失败', e); }
-}
-
-function seed() {
-  state = {
-    tickets: JSON.parse(JSON.stringify(SEED.tickets)),
-    staff: JSON.parse(JSON.stringify(SEED.staff)),
-  };
-  saveLocal();
-}
-function resetDemo() {
-  if (confirm('确定清空全部工单数据？')) {
-    fetch(API_BASE + '/api/tickets', {method:'DELETE'}).then(function(){
-      localStorage.removeItem(LS_KEY);
-      location.reload();
-    }).catch(function(){ localStorage.removeItem(LS_KEY); location.reload(); });
-  }
+  } catch(e) { console.warn('API更新失败', e); }
 }
 
 /* ============================================================
@@ -115,15 +99,6 @@ function fmtTime(iso) {
   return `${t.getMonth() + 1}-${p(t.getDate())} ${p(t.getHours())}:${p(t.getMinutes())}`;
 }
 function durHours(a, b) { if (!a || !b) return null; return +((new Date(b) - new Date(a)) / 3600000).toFixed(1); }
-function durLabel(t) {
-  if (t.status !== 'done' || !t.finished) {
-    // 进行中：从创建到现在
-    const h = durHours(t.created, new Date().toISOString());
-    return h == null ? '—' : `进行中 ${h}h`;
-  }
-  const h = durHours(t.created, t.finished);
-  return h == null ? '—' : `${h}h`;
-}
 
 let toastTimer;
 function toast(msg) {
@@ -303,12 +278,9 @@ async function reloadCommunities() {
   } catch(e) { /* keep existing */ }
   initCommunitySelect();
 }
-/* ============================================================
-   工单列表渲染（旧版已移除，使用下方增强版）
-   ============================================================ */
 
 /* ============================================================
-   详情抽屉（旧版已移除，使用下方增强版）
+   详情抽屉 & 照片
    ============================================================ */
 let openTicketId = null;
 
@@ -350,11 +322,8 @@ function closeDrawer() {
   openTicketId = null;
 }
 
-/* buildActions / assignTicket / workerFinish / confirmDone / reject / afterAction
-   旧版已移除，使用下方增强版 */
-
 /* ============================================================
-   工单操作（旧版已移除，使用下方增强版）
+   工单操作
    ============================================================ */
 function pushStep(t, title, who) { t.steps.push({ title, who, time: new Date().toISOString() }); }
 
@@ -395,10 +364,8 @@ function uploadPhoto(id) {
 }
 
 
-/* confirmDone / reject / afterAction 旧版已移除，使用下方增强版 */
-
 /* ============================================================
-   看板 Dashboard（旧版已移除，使用下方增强版）
+   看板 & 图表
    ============================================================ */
 
 function getChart(id) {
@@ -410,7 +377,7 @@ function getChart(id) {
 window.addEventListener('resize', () => Object.values(charts).forEach(c => c.resize()));
 
 /* ============================================================
-   管理平台（旧版 renderStaff 已移除，使用下方增强版）
+   管理平台
    ============================================================ */
 
 let editingStaffId = null;
@@ -503,11 +470,8 @@ function deleteStaff(id) {
   }
 }
 
-/* ---------- 启动 ---------- */
-/* (此块被后面增强版 window.onload 覆盖，保留为参考) */
-
 /* ============================================================
-   小区切换
+   小区管理
    ============================================================ */
 function initCommunitySelect() {
   var sel = $('#communitySelect');
