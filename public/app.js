@@ -1115,7 +1115,14 @@ function copyReport(){
   });
 }
 
-window.onload=async function(){await load();enhanceState();setupEnhancedUI();initCommunitySelect();initNav();initRole();['repair','complaint','help'].forEach(initFilters);initDoneFilters();initSchedule();loadReminderInterval();renderAll();renderDashboard();applyRoleView();$('#drawerClose').onclick=closeDrawer;$('#drawerMask').onclick=closeDrawer;startAutoSync();checkLogin();};
+window.onload=async function(){
+  // 禁用导航直到渲染完成
+  var nav = document.querySelector('.nav');
+  if (nav) { nav.style.pointerEvents = 'none'; nav.style.opacity = '0.5'; }
+  await load();enhanceState();setupEnhancedUI();initCommunitySelect();initNav();initRole();['repair','complaint','help'].forEach(initFilters);initDoneFilters();initSchedule();loadReminderInterval();renderAll();renderDashboard();applyRoleView();$('#drawerClose').onclick=closeDrawer;$('#drawerMask').onclick=closeDrawer;startAutoSync();checkLogin();
+  // 渲染完毕，启用导航
+  if (nav) { nav.style.pointerEvents = ''; nav.style.opacity = ''; }
+};
 
 function startAutoSync(){setInterval(async function(){try{var resp=await fetch(API_BASE+'/api/tickets?community_id='+encodeURIComponent(currentCommunity));var json=await resp.json();if(json.data&&json.data.length){state.tickets=json.data.filter(t=>t.id&&t.type);state.tickets.forEach(t=>{t.priority=t.priority||inferPriority(t);t.rejectHistory=t.rejectHistory||[];t.steps=t.steps||[];t.photos=t.photos||[];t.aggregated=t.aggregated||[];});saveLocal();renderAll();if($('#page-dashboard').classList.contains('active'))renderDashboard();}}catch(e){}},10000);}
 
