@@ -264,9 +264,23 @@ function updateMyStatus() {
   var s = state.staff.find(function(x) { return x.name === myName; });
   if (!s) { toast('未找到人员信息'); return; }
   var newStatus = $('#my-status-select').value;
+  var hasActive = state.tickets.some(function(t) { return t.worker === myName && (t.status === 'doing' || t.status === 'confirm'); });
+
+  // 有工单时不能切到待命或请假
+  if (hasActive && (newStatus === 'on' || newStatus === 'off')) {
+    toast('您手上还有未完成工单，请先完成或驳回后再更改状态');
+    $('#my-status-select').value = s.status;
+    return;
+  }
+  // 没工单时不能切到正在处理
+  if (!hasActive && newStatus === 'busy') {
+    toast('当前没有处理中的工单，无法设为"正在处理"');
+    $('#my-status-select').value = s.status;
+    return;
+  }
+
   s.status = newStatus;
   save();
-  // 同步到后端
   fetch(API_BASE + '/api/staff/status', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
