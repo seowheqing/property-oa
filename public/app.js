@@ -690,7 +690,7 @@ function ageLabel(t) {
 }
 function ticketSla(t) { return t.priority === 'urgent' ? 2 : (t.priority === 'high' ? 8 : (t.priority === 'normal' ? 24 : 48)); }
 function isOnTime(t) { var h = durHours(t.created, t.finished); return h != null && h <= ticketSla(t); }
-function activeStaff(role) { return state.staff.filter(s => s.role === role && s.status !== 'off'); }
+function activeStaff(role) { return state.staff.filter(s => s.role === role && s.status === 'on'); }
 
 function enhanceState() {
   state.tickets.forEach(t => {
@@ -793,7 +793,7 @@ function buildActions(t) {
   var repair=t.type==='repair', keeper=!repair, mine=repair&&currentRole.startsWith('worker_')&&t.worker===roleWorkerName();
   if(t.status==='wait'){
     if(!isLead(t)) return hint(`仅${repair?'工程部':'物业'}主管可指派。`);
-    var people=activeStaff(repair?'维修工':'物业管家'); if(!people.length)return hint('暂无可用处理人（全部请假中）。');
+    var people=activeStaff(repair?'维修工':'物业管家'); if(!people.length)return hint('暂无可派单人员（全部正在处理或请假中）。');
     var defHrs = CAT_DEFAULT_HOURS[t.cat] || 2;
     var timeOpts = [0.5,1,1.5,2,2.5,3,4,5,6,8].map(h => `<option value="${h}"${h===defHrs?' selected':''}>${h}小时</option>`).join('');
     return `<select id="assignWorker">${people.map(s=>`<option value="${esc(s.name)}">${esc(s.name)} · ${esc(s.skill)}</option>`).join('')}</select><select id="assignDuration" title="预计处理时间">${timeOpts}</select><button class="btn" onclick="assignTicket('${t.id}')">确认指派</button>`;
@@ -1239,9 +1239,15 @@ function enterApp(user){
   // 显示当前用户名
   var roleLabel=document.querySelector('.role-switch label');
   if(roleLabel){roleLabel.style.display='inline';roleLabel.textContent=user.name+' · '+(user.role==='admin'?'主管':user.role==='worker'?'维修工':'管家');}
-  applyRoleView();
-  // 图表在display:none时初始化尺寸不对，显示后强制resize
-  setTimeout(function(){ Object.values(charts).forEach(function(c){c.resize();}); renderDashboard(); }, 800);
+  // 重新加载数据（小区列表 + 工单），然后渲染
+  (async function(){
+    await reloadCommunities();
+    await reloadTickets();
+    enhanceState();
+    applyRoleView();
+    // 图表在display:none时初始化尺寸不对，显示后强制resize
+    setTimeout(function(){ Object.values(charts).forEach(function(c){c.resize();}); renderDashboard(); }, 300);
+  })();
 }
 function checkLogin(){
   var saved=localStorage.getItem('login_user');
@@ -1288,6 +1294,11 @@ function showLoginPage(){
 }
 function doLogout(){
   localStorage.removeItem('login_user');
+  // 销毁所有图表实例，避免切换用户后尺寸异常
+  Object.keys(charts).forEach(function(k) {
+    try { charts[k].dispose(); } catch(e) {}
+  });
+  charts = {};
   showLoginPage();
   $('#login-phone').value='';$('#login-password').value='';$('#login-error').textContent='';
 }
