@@ -130,7 +130,12 @@ function initNav() {
       b.classList.add('active');
       $$('.page').forEach(p => p.classList.remove('active'));
       $('#page-' + b.dataset.page).classList.add('active');
-      if (b.dataset.page === 'dashboard') setTimeout(renderDashboard, 30);
+      if (b.dataset.page === 'dashboard') setTimeout(function() {
+        // 销毁旧图表实例避免display:none时尺寸为0的问题
+        Object.keys(charts).forEach(function(k) { try { charts[k].dispose(); } catch(e) {} });
+        charts = {};
+        renderDashboard();
+      }, 50);
       if (b.dataset.page === 'schedule') setTimeout(renderSchedule, 30);
     };
   });
