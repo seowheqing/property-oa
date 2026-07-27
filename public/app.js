@@ -1267,7 +1267,34 @@ function renderTimelineDay(people, blocks, day, hStart, hEnd) {
     var avgH = workerAvgHours(p);
     var staffObj = state.staff.find(function(s) { return s.name === p; });
     var dutyLabel = staffObj ? (staffObj.dutyStart || '08:00') + '~' + (staffObj.dutyEnd || '18:00') : '';
-    return `<div class="vtl-col"><div class="vtl-col-head"><b>${esc(p)}</b><br><small>${dutyLabel}</small></div><div class="vtl-col-track">${items}</div></div>`;
+    // 生成非值班时段灰色块
+    var offDutyHtml = '';
+    if (staffObj) {
+      var ds = parseHM(staffObj.dutyStart || '08:00');
+      var de = parseHM(staffObj.dutyEnd || '18:00');
+      var dsH = ds / 60, deH = de / 60;
+      if (ds <= de) {
+        // 正常班次：0~start 和 end~24 为休息
+        if (dsH > hStart) {
+          var topPct = 0;
+          var hPct = ((dsH - hStart) / totalH * 100).toFixed(2);
+          offDutyHtml += `<div class="vtl-offduty" style="top:${topPct}%;height:${hPct}%"></div>`;
+        }
+        if (deH < hEnd) {
+          var topPct2 = ((deH - hStart) / totalH * 100).toFixed(2);
+          var hPct2 = ((hEnd - deH) / totalH * 100).toFixed(2);
+          offDutyHtml += `<div class="vtl-offduty" style="top:${topPct2}%;height:${hPct2}%"></div>`;
+        }
+      } else {
+        // 跨午夜班次（如22:00~06:00）：end~start 为休息
+        if (deH > hStart && dsH < hEnd) {
+          var topPct3 = ((deH - hStart) / totalH * 100).toFixed(2);
+          var hPct3 = ((dsH - deH) / totalH * 100).toFixed(2);
+          offDutyHtml += `<div class="vtl-offduty" style="top:${topPct3}%;height:${hPct3}%"></div>`;
+        }
+      }
+    }
+    return `<div class="vtl-col"><div class="vtl-col-head"><b>${esc(p)}</b><br><small>${dutyLabel}</small></div><div class="vtl-col-track">${offDutyHtml}${items}</div></div>`;
   }).join('');
 
   return `<div class="vtl-chart"><div class="vtl-time-col"><div class="vtl-col-head-placeholder"></div><div class="vtl-time-labels">${timeLabels}</div></div>${columns}</div>`;

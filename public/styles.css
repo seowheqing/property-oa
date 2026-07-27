@@ -790,6 +790,18 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
 }
 .vtl-block-text small { font-weight: 400; color: inherit; opacity: .7; }
 
+/* 非值班时段灰色块 */
+.vtl-offduty {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(0,0,0,.04);
+  z-index: 0;
+  pointer-events: none;
+  border-top: 1px dashed var(--hairline-strong);
+  border-bottom: 1px dashed var(--hairline-strong);
+}
+
 /* 保留旧类名兼容冲突检测样式 */
 .tl-block.conflict { box-shadow: 0 0 0 2px var(--danger) !important; z-index: 3; }
 .month-timeline { display: flex; flex-wrap: wrap; gap: 8px; }
