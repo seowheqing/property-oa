@@ -1596,14 +1596,12 @@ function showLoginPage(){
   $('#app-main').style.display='none';
   $('#login-page').style.display='flex';
   window._jigsawPassed=false;
-  // 初始化滑动验证码
+  // 初始化滑动验证码（本地 canvas，无网络请求）
   var container=$('#jigsaw-container');
-  if(container&&typeof jigsaw!=='undefined'){
+  if(container&&typeof LocalCaptcha!=='undefined'){
     container.innerHTML='';
-    jigsaw.init({
+    LocalCaptcha.init({
       el:container,
-      width:290,
-      height:130,
       onSuccess:function(){
         window._jigsawPassed=true;
         $('#login-btn').disabled=false;
@@ -1611,13 +1609,6 @@ function showLoginPage(){
       },
       onFail:function(){
         window._jigsawPassed=false;
-        $('#login-btn').disabled=true;
-        $('#login-btn').style.opacity='0.5';
-      },
-      onRefresh:function(){
-        window._jigsawPassed=false;
-        $('#login-btn').disabled=true;
-        $('#login-btn').style.opacity='0.5';
       }
     });
     $('#login-btn').disabled=true;

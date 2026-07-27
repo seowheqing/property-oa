@@ -1,0 +1,205 @@
+/**
+ * 工单路由
+ */
+const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+const router = express.Router();
+const { queryAll, queryOne, run, saveDB } = require('../db');
+const config = require('../config');
+
+// 上传配置
+if (!fs.existsSync(config.UPLOAD_DIR)) fs.mkdirSync(config.UPLOAD_DIR, { recursive: true });
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const ticketDir = path.join(config.UPLOAD_DIR, req.params.id);
+    if (!fs.existsSync(ticketDir)) fs.mkdirSync(ticketDir, { recursive: true });
+    cb(null, ticketDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext);
+  }
+});
+const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024, files: 10 } });
+
+function rowToTicket(row) {
+  var meta = {};
+  try { meta = JSON.parse(row.metadata || '{}'); } catch(e) {}
+  return {
+    id: row.id, type: row.type, cat: row.cat, desc: row.desc, loc: row.loc,
+    priority: row.priority, status: row.status, worker: row.worker || null,
+    message: row.message || '', created: row.created, finished: row.finished || null,
+    rejectReason: row.reject_reason || '', estimated_hours: row.estimated_hours || 0,
+    sessionId: row.session_id || '', community_id: row.community_id || 'default',
+    repeatOf: row.repeat_of || '', repeatCount: Number(row.repeat_count) || 1,
+    isRecurring: Boolean(Number(row.is_recurring)), recurrenceNote: row.recurrence_note || '',
+    feedbackCount: Number(row.feedback_count) || 1,
+    notes: meta.notes || [], urged: meta.urged || [],
+    suspendReason: meta.suspendReason || '', suspendEstimate: meta.suspendEstimate || '',
+    steps: meta.steps || []
+  };
+}
+
+// ============ 重复/复发识别工具 ============
+const DUPLICATE_WINDOW_MS = 15 * 60 * 1000;
+const RECURRENCE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+function normalizeLoc(loc) { return (loc || '').replace(/\s+/g, '').replace(/[—–-]/g, '-').toLowerCase(); }
+function buildRepeatKey(type, cat, loc) { return [type, cat, normalizeLoc(loc)].join('|'); }
+function identifyIssueSignature(cat, desc, message) {
+  const text = [cat, desc, message].join(' ').toLowerCase();
+  const keywords = ['漏水','水压低','停水','堵塞','跳闸','断电','短路','噪音','松动','脱轨','损坏','不热','漏风','失灵','不亮'];
+  const matched = keywords.filter(k => text.includes(k));
+  return matched.length ? matched.sort().join(',') : cat;
+}
+function getRepeatMatches(communityId, repeatKey, issueSignature) {
+  const candidates = queryAll('SELECT * FROM tickets WHERE community_id = ? AND repeat_key = ? ORDER BY created DESC', [communityId, repeatKey]);
+  return candidates.filter(row => {
+    const rSig = identifyIssueSignature(row.cat, row.desc, row.message);
+    return rSig === issueSignature;
+  });
+}
+function raiseRecurringPriority(p) {
+  const order = ['low','normal','high','urgent'];
+  const idx = order.indexOf(p);
+  return idx < order.length - 1 ? order[idx + 1] : p;
+}
+
+// GET /api/tickets
+router.get('/', (req, res) => {
+  const communityId = req.query.community_id;
+  const worker = req.query.worker;
+  let rows;
+  if (worker) { rows = queryAll('SELECT * FROM tickets WHERE worker = ? ORDER BY created DESC', [worker]); }
+  else if (communityId) { rows = queryAll('SELECT * FROM tickets WHERE community_id = ? ORDER BY created DESC', [communityId]); }
+  else { rows = queryAll('SELECT * FROM tickets ORDER BY created DESC'); }
+  res.json({ data: rows.map(rowToTicket) });
+});
+
+// GET /api/tickets/:id
+router.get('/:id', (req, res) => {
+  const row = req.query.community_id
+    ? queryOne('SELECT * FROM tickets WHERE id = ? AND community_id = ?', [req.params.id, req.query.community_id])
+    : queryOne('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).json({ error: '工单不存在' });
+  res.json({ data: rowToTicket(row) });
+});
+
+// POST /api/tickets
+router.post('/', (req, res) => {
+  const t = req.body;
+  const rawId = t.id ? String(t.id).trim() : '';
+  const invalidIds = ['测试', 'test', ''];
+  let id;
+  if (rawId && !invalidIds.includes(rawId.toLowerCase())) { id = rawId; }
+  else {
+    const maxRow = queryOne("SELECT id FROM tickets WHERE id LIKE 'WX%' ORDER BY CAST(SUBSTR(id, 3) AS INTEGER) DESC LIMIT 1");
+    const maxNum = maxRow ? parseInt(maxRow.id.replace('WX', '')) || 0 : 0;
+    id = 'WX' + String(maxNum + 1).padStart(4, '0');
+  }
+  const now = t.created || new Date().toISOString();
+  const communityId = t.community_id || 'default';
+  const type = t.type || 'repair';
+  const cat = t.cat || '其他';
+  const loc = t.loc || '';
+  const repeatKey = buildRepeatKey(type, cat, loc);
+  const issueSignature = identifyIssueSignature(cat, t.desc, t.message);
+  const matches = getRepeatMatches(communityId, repeatKey, issueSignature);
+  const createdMs = Date.parse(now) || Date.now();
+
+  // 15分钟内同类未完成 → 合并
+  const recentOpen = matches.find(row => {
+    const delta = createdMs - Date.parse(row.created);
+    return row.status !== 'done' && Number.isFinite(delta) && delta >= 0 && delta <= DUPLICATE_WINDOW_MS;
+  });
+  if (recentOpen) {
+    const feedbackCount = (Number(recentOpen.feedback_count) || 1) + 1;
+    run('UPDATE tickets SET feedback_count = ?, repeat_key = ? WHERE id = ?', [feedbackCount, repeatKey, recentOpen.id]);
+    saveDB();
+    const mergedTicket = rowToTicket(queryOne('SELECT * FROM tickets WHERE id = ?', [recentOpen.id]));
+    return res.json({ success: true, action: 'merged', merged: true, mergedInto: recentOpen.id, record: mergedTicket });
+  }
+
+  // 30天内同类已完成 → 复发
+  const completedMatches = matches.filter(row => {
+    const delta = createdMs - Date.parse(row.created);
+    return row.status === 'done' && Number.isFinite(delta) && delta >= 0 && delta <= RECURRENCE_WINDOW_MS;
+  });
+  const repeatOf = completedMatches.length ? completedMatches[0].id : '';
+  const repeatCount = completedMatches.length + 1;
+  const isRecurring = Boolean(repeatOf);
+  const recurrenceNote = isRecurring ? `近30天同类问题复发${repeatCount}次，关联历史工单${repeatOf}` : '';
+  const priority = isRecurring ? raiseRecurringPriority(t.priority || 'normal') : (t.priority || 'normal');
+
+  try {
+    run(
+      `INSERT INTO tickets (id, type, cat, desc, loc, priority, status, worker, message, created, estimated_hours, session_id, community_id, repeat_key, repeat_of, repeat_count, is_recurring, recurrence_note, feedback_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, type, cat, t.desc || '', loc, priority, t.status || 'wait', t.worker || '', t.message || '', now, t.estimated_hours || 0, t.sessionId || '', communityId, repeatKey, repeatOf, repeatCount, isRecurring ? 1 : 0, recurrenceNote, 1]
+    );
+    saveDB();
+    const row = queryOne('SELECT * FROM tickets WHERE id = ?', [id]);
+    const ticket = rowToTicket(row);
+    res.json({ success: true, action: isRecurring ? 'created_recurring' : 'created', record: ticket });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// PATCH /api/tickets/:id
+router.patch('/:id', (req, res) => {
+  const updates = req.body;
+  const allowed = { status: 'status', worker: 'worker', priority: 'priority', finished: 'finished', reject_reason: 'reject_reason', rejectReason: 'reject_reason', estimated_hours: 'estimated_hours', cat: 'cat', loc: 'loc', desc: 'desc', message: 'message', sessionId: 'session_id', community_id: 'community_id', metadata: 'metadata' };
+  const sets = [], values = [];
+  for (const [key, col] of Object.entries(allowed)) {
+    if (updates[key] !== undefined) { sets.push(`${col} = ?`); values.push(updates[key]); }
+  }
+  if (!sets.length) return res.status(400).json({ error: '无更新字段' });
+  values.push(req.params.id);
+  try {
+    run(`UPDATE tickets SET ${sets.join(', ')} WHERE id = ?`, values);
+    saveDB();
+    const row = queryOne('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
+    if (!row) return res.status(404).json({ error: '工单不存在' });
+    res.json({ success: true, record: rowToTicket(row) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// DELETE /api/tickets/:id
+router.delete('/:id', (req, res) => {
+  run('DELETE FROM tickets WHERE id = ?', [req.params.id]);
+  saveDB();
+  res.json({ success: true });
+});
+
+// POST /api/tickets/:id/photos
+router.post('/:id/photos', upload.array('photos', 10), (req, res) => {
+  const ticketId = req.params.id;
+  const row = queryOne('SELECT * FROM tickets WHERE id = ?', [ticketId]);
+  if (!row) return res.status(404).json({ error: '工单不存在' });
+  if (!req.files || !req.files.length) return res.status(400).json({ error: '没有上传文件' });
+  const photos = req.files.map(f => ({
+    filename: f.filename, originalName: f.originalname,
+    url: `/uploads/${ticketId}/${f.filename}`, size: f.size, uploadedAt: new Date().toISOString()
+  }));
+  const photoFile = path.join(config.UPLOAD_DIR, `${ticketId}.json`);
+  let savedPhotos = [];
+  if (fs.existsSync(photoFile)) { try { savedPhotos = JSON.parse(fs.readFileSync(photoFile, 'utf-8')); } catch(e) {} }
+  savedPhotos.push(...photos);
+  fs.writeFileSync(photoFile, JSON.stringify(savedPhotos, null, 2));
+  res.json({ success: true, ticketId, uploaded: photos.length, totalPhotos: savedPhotos.length, photos: savedPhotos });
+});
+
+// GET /api/tickets/:id/photos
+router.get('/:id/photos', (req, res) => {
+  const photoFile = path.join(config.UPLOAD_DIR, `${req.params.id}.json`);
+  if (!fs.existsSync(photoFile)) return res.json({ data: [] });
+  try { res.json({ data: JSON.parse(fs.readFileSync(photoFile, 'utf-8')) }); }
+  catch(e) { res.json({ data: [] }); }
+});
+
+module.exports = router;
