@@ -583,11 +583,14 @@ app.post('/api/pending-registrations/:id/reject', (req, res) => {
   res.json({ success: true, message: '已拒绝' });
 });
 
-// GET /api/tickets — 支持 ?community_id= 按小区筛选
+// GET /api/tickets — 支持 ?community_id= 按小区筛选, ?worker= 按师傅筛选
 app.get('/api/tickets', (req, res) => {
   const communityId = req.query.community_id;
+  const worker = req.query.worker;
   let rows;
-  if (communityId) {
+  if (worker) {
+    rows = queryAll('SELECT * FROM tickets WHERE worker = ? ORDER BY created DESC', [worker]);
+  } else if (communityId) {
     rows = queryAll('SELECT * FROM tickets WHERE community_id = ? ORDER BY created DESC', [communityId]);
   } else {
     rows = queryAll('SELECT * FROM tickets ORDER BY created DESC');
