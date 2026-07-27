@@ -447,6 +447,24 @@ function saveStaff() {
     status: $('#f-status').value,
     done: parseInt($('#f-done').value) || 0,
   };
+
+  // 状态校验：编辑已有人员时检查工单状态
+  if (editingStaffId) {
+    var existing = state.staff.find(s => s.id === editingStaffId);
+    if (existing && data.status !== existing.status) {
+      var staffName = existing.name;
+      var hasActive = state.tickets.some(function(t) { return t.worker === staffName && (t.status === 'doing' || t.status === 'confirm'); });
+      if (hasActive && (data.status === 'on' || data.status === 'off')) {
+        toast('该人员手上还有未完成工单，请先完成或驳回后再更改状态');
+        return;
+      }
+      if (!hasActive && data.status === 'busy') {
+        toast('该人员当前没有处理中的工单，无法设为"正在处理"');
+        return;
+      }
+    }
+  }
+
   if (editingStaffId) {
     Object.assign(state.staff.find(s => s.id === editingStaffId), data);
     toast('已更新人员信息');

@@ -695,6 +695,7 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
 .vtl-time-labels {
   position: relative;
   height: 1200px;
+  padding-bottom: 16px;
 }
 .vtl-hour {
   position: absolute;
@@ -741,6 +742,7 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
   flex: 1;
   position: relative;
   height: 1200px;
+  margin-bottom: 16px;
   /* 每小时一条横线（24格） */
   background-image: repeating-linear-gradient(
     to bottom,
