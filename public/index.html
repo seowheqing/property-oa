@@ -27,8 +27,32 @@
       <div id="jigsaw-container" style="margin-bottom:16px"></div>
       <button class="btn" style="width:100%;padding:12px;font-size:15px" onclick="doLogin()" id="login-btn">登 录</button>
       <div id="login-error" style="color:var(--danger);font-size:13px;text-align:center;margin-top:12px"></div>
+      <div style="text-align:center;margin-top:16px;display:flex;justify-content:center;gap:16px">
+        <a href="javascript:void(0)" onclick="showRegisterForm()" style="color:var(--primary);font-size:13px;text-decoration:none">没有账号？注册 →</a>
+        <a href="javascript:void(0)" onclick="showResetForm()" style="color:var(--text-2);font-size:13px;text-decoration:none">忘记密码？</a>
+      </div>
+    </div>
+    <!-- 找回/重置密码表单 -->
+    <div id="reset-form" style="display:none;background:var(--card);border-radius:16px;padding:36px;width:360px;max-width:90vw;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid var(--border)">
+      <h2 style="text-align:center;margin-bottom:6px">🔑 重置密码</h2>
+      <p style="text-align:center;color:var(--text-2);font-size:13px;margin-bottom:20px">输入手机号和新密码即可重置</p>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:4px">手机号</label>
+        <input id="reset-phone" type="tel" placeholder="已注册的手机号" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:4px">新密码</label>
+        <input id="reset-password" type="password" placeholder="设置新密码（至少4位）" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:4px">确认新密码</label>
+        <input id="reset-password2" type="password" placeholder="再次输入新密码" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+      </div>
+      <button class="btn" style="width:100%;padding:12px;font-size:15px" onclick="doResetPassword()">重置密码</button>
+      <div id="reset-error" style="color:var(--danger);font-size:13px;text-align:center;margin-top:12px"></div>
+      <div id="reset-success" style="color:var(--success);font-size:13px;text-align:center;margin-top:12px"></div>
       <div style="text-align:center;margin-top:16px">
-        <a href="javascript:void(0)" onclick="showRegisterForm()" style="color:var(--primary);font-size:13px;text-decoration:none">没有账号？使用邀请码注册 →</a>
+        <a href="javascript:void(0)" onclick="showLoginForm()" style="color:var(--primary);font-size:13px;text-decoration:none">← 返回登录</a>
       </div>
     </div>
     <!-- 注册表单 -->
@@ -56,6 +80,7 @@
         <select id="reg-role" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px">
           <option value="worker">维修工</option>
           <option value="keeper">物业管家</option>
+          <option value="admin">主管</option>
         </select>
       </div>
       <div style="margin-bottom:20px">

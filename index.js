@@ -363,6 +363,18 @@ app.post('/api/login', (req, res) => {
   res.json({ success: true, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
 });
 
+// POST /api/reset-password — 重置密码
+app.post('/api/reset-password', (req, res) => {
+  const { phone, newPassword } = req.body;
+  if (!phone || !newPassword) return res.status(400).json({ error: '手机号和新密码必填' });
+  if (newPassword.length < 4) return res.status(400).json({ error: '密码至少4位' });
+  const user = queryOne('SELECT * FROM users WHERE phone = ?', [phone]);
+  if (!user) return res.status(404).json({ error: '该手机号未注册' });
+  db.run('UPDATE users SET password = ? WHERE phone = ?', [newPassword, phone]);
+  saveDB();
+  res.json({ success: true, message: '密码已重置' });
+});
+
 // POST /api/users — 创建用户（主管在管理平台添加）
 app.post('/api/users', (req, res) => {
   const { phone, password, name, role } = req.body;

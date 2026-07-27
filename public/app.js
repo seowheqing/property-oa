@@ -1306,13 +1306,45 @@ function doLogin(){
 
 function showRegisterForm() {
   $('#login-form').style.display = 'none';
+  $('#reset-form').style.display = 'none';
   $('#register-form').style.display = '';
   $('#reg-error').textContent = '';
   $('#reg-success').textContent = '';
 }
 function showLoginForm() {
   $('#register-form').style.display = 'none';
+  $('#reset-form').style.display = 'none';
   $('#login-form').style.display = '';
+}
+function showResetForm() {
+  $('#login-form').style.display = 'none';
+  $('#register-form').style.display = 'none';
+  $('#reset-form').style.display = '';
+  $('#reset-error').textContent = '';
+  $('#reset-success').textContent = '';
+}
+
+function doResetPassword() {
+  var phone = $('#reset-phone').value.trim();
+  var pwd = $('#reset-password').value;
+  var pwd2 = $('#reset-password2').value;
+  $('#reset-error').textContent = '';
+  $('#reset-success').textContent = '';
+  if (!phone || !/^1[3-9]\d{9}$/.test(phone)) { $('#reset-error').textContent = '请输入正确的11位手机号'; return; }
+  if (!pwd || pwd.length < 4) { $('#reset-error').textContent = '新密码至少4位'; return; }
+  if (pwd !== pwd2) { $('#reset-error').textContent = '两次输入密码不一致'; return; }
+  fetch(API_BASE + '/api/reset-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: phone, newPassword: pwd })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) {
+      $('#reset-success').textContent = '✓ 密码已重置，请返回登录';
+      $('#reset-error').textContent = '';
+    } else {
+      $('#reset-error').textContent = d.error || '重置失败';
+    }
+  }).catch(function() { $('#reset-error').textContent = '网络错误'; });
 }
 
 function doRegister() {
