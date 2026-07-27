@@ -673,6 +673,12 @@ function enhanceState() {
     t.recurrenceNote = t.recurrenceNote || '';
     t.feedbackCount = Number(t.feedbackCount) || 1;
   });
+  // 自动推导师傅状态：有处理中工单 → busy(正在处理)，否则保持当前状态
+  state.staff.forEach(s => {
+    if (s.status === 'off') return; // 请假状态不自动变更
+    var hasActive = state.tickets.some(t => t.worker === s.name && (t.status === 'doing' || t.status === 'confirm'));
+    s.status = hasActive ? 'busy' : 'on';
+  });
 }
 
 function setupEnhancedUI() {
