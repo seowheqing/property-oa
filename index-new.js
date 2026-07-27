@@ -46,6 +46,15 @@ async function start() {
   });
 }
 
+// 全局错误处理
+process.on('uncaughtException', (err) => {
+  console.error('❌ 未捕获异常:', err.message);
+  console.error(err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('❌ 未处理的 Promise 拒绝:', reason);
+});
+
 start().catch(err => {
   console.error('启动失败:', err);
   process.exit(1);

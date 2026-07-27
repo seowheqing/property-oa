@@ -9,13 +9,13 @@ const { generateToken } = require('../middleware/auth');
 
 // POST /api/login
 router.post('/login', async (req, res) => {
-  const { phone, password } = req.body;
+  const { phone, password, rememberMe } = req.body;
   if (!phone || !password) return res.status(400).json({ error: '请输入手机号和密码' });
   const user = queryOne('SELECT * FROM users WHERE phone = ?', [phone]);
   if (!user) return res.status(401).json({ error: '手机号未注册' });
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) return res.status(401).json({ error: '密码错误' });
-  const token = generateToken(user);
+  const token = generateToken(user, rememberMe);
   res.json({ success: true, token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
 });
 

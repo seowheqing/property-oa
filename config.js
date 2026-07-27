@@ -22,6 +22,7 @@ module.exports = {
   // JWT
   JWT_SECRET: process.env.JWT_SECRET || 'property-oa-secret-2026',
   JWT_EXPIRES: '7d',
+  JWT_EXPIRES_LONG: '30d',
 
   // 句子秒懂
   JZMM_BASE_URL: 'https://stride-md.dpclouds.com',

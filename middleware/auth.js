@@ -4,11 +4,11 @@
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 
-function generateToken(user) {
+function generateToken(user, rememberMe) {
   return jwt.sign(
     { id: user.id, phone: user.phone, name: user.name, role: user.role },
     config.JWT_SECRET,
-    { expiresIn: config.JWT_EXPIRES }
+    { expiresIn: rememberMe ? config.JWT_EXPIRES_LONG : config.JWT_EXPIRES }
   );
 }
 
