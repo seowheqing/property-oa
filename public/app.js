@@ -206,13 +206,17 @@ function applyRoleView() {
     if (b.dataset.page === 'admin') b.style.display = (isWorker || isKeeper) ? 'none' : '';
     if (b.dataset.page === 'dashboard') b.style.display = (isWorker || isKeeper) ? 'none' : '';
   });
-  // 师傅日程页面：自动筛选为只看自己
+  // 重新初始化日程选择器（根据角色限制可见范围）
+  initSchedule();
+  // 更新日程页面标题和导航按钮文字
+  var schedTitle = document.querySelector('#page-schedule .page-title');
+  var schedNavBtn = $$('.nav button').find(b => b.dataset.page === 'schedule');
   if (isWorker || isKeeper) {
-    var myName = roleWorkerName() || currentRole.replace('pm_keeper_','');
-    setTimeout(function(){
-      var sel = $('#schedule-worker');
-      if (sel) { sel.value = myName; renderSchedule(); }
-    }, 50);
+    if (schedTitle) schedTitle.textContent = '我的日程';
+    if (schedNavBtn) schedNavBtn.textContent = '📅 我的日程';
+  } else {
+    if (schedTitle) schedTitle.textContent = '师傅日程 · 排班与冲突检测';
+    if (schedNavBtn) schedNavBtn.textContent = '📅 师傅日程';
   }
   // 切换到师傅视图时默认显示工单页
   if (isWorker) { navTo('repair'); }
@@ -877,7 +881,19 @@ function estimateDuration(t) {
 
 function initSchedule() {
   var sel = $('#schedule-worker');
-  sel.innerHTML = '<option value="">全部人员</option>' + state.staff.map(s => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('');
+  var isLead = currentRole === 'eng_lead';
+  if (isLead) {
+    // 主管可以查看所有人
+    sel.innerHTML = '<option value="">全部人员</option>' + state.staff.map(s => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('');
+    sel.disabled = false;
+    sel.style.display = '';
+  } else {
+    // 非主管只能看自己
+    var myName = roleWorkerName() || currentRole.replace('pm_keeper_', '');
+    sel.innerHTML = `<option value="${esc(myName)}">我的日程</option>`;
+    sel.value = myName;
+    sel.disabled = true;
+  }
   sel.onchange = renderSchedule;
   var dateInput = $('#schedule-date');
   dateInput.value = new Date().toISOString().slice(0,10);
