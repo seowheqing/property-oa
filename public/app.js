@@ -937,18 +937,26 @@ function renderSchedule() {
 
 function renderTimelineDay(people, blocks, day, hStart, hEnd) {
   var totalH = hEnd - hStart;
-  // 时间刻度
-  var ruler = '<div class="tl-ruler"><div class="tl-name-col"></div>';
-  for (var h = hStart; h <= hEnd; h++) ruler += `<div class="tl-hour">${h}:00</div>`;
-  ruler += '</div>';
 
-  var rows = people.map(p => {
+  // 竖版布局：X轴=师傅列，Y轴=时间从上到下
+  // 左侧时间刻度列
+  var timeLabels = '';
+  for (var h = hStart; h <= hEnd; h++) {
+    var pct = ((h - hStart) / totalH * 100).toFixed(2);
+    timeLabels += `<div class="vtl-hour" style="top:${pct}%">${h}:00</div>`;
+  }
+
+  // 每位师傅一列
+  var columns = people.map(p => {
     var pBlocks = blocks.filter(b => b.worker === p);
-    // 计算每个block的层级（冲突时错开显示）
-    var lanes = [];
+    // 计算显示范围
     pBlocks.forEach(b => {
       b._displayStart = sameDay(b.start, day) ? b.start : new Date(day.getFullYear(), day.getMonth(), day.getDate(), hStart, 0);
       b._displayEnd = b.end > new Date(day.getFullYear(), day.getMonth(), day.getDate(), hEnd, 0) ? new Date(day.getFullYear(), day.getMonth(), day.getDate(), hEnd, 0) : b.end;
+    });
+    // 计算lanes（冲突时左右错开）
+    var lanes = [];
+    pBlocks.forEach(b => {
       var lane = 0;
       for (var l = 0; l < lanes.length; l++) {
         if (lanes[l] <= b._displayStart.getTime()) { lane = l; break; }
@@ -958,23 +966,23 @@ function renderTimelineDay(people, blocks, day, hStart, hEnd) {
       b._lane = lane;
     });
     var maxLanes = Math.max(1, lanes.length);
-    var rowH = Math.max(48, maxLanes * 36 + 8);
-    var blockH = Math.min(32, Math.floor((rowH - 8) / maxLanes) - 2);
 
     var items = pBlocks.map(b => {
       var startH = b._displayStart.getHours() + b._displayStart.getMinutes() / 60;
       var durH = (b._displayEnd - b._displayStart) / 3600000;
-      var left = Math.max(0, ((startH - hStart) / totalH) * 100);
-      var width = Math.min(100 - left, (durH / totalH) * 100);
-      var top = 4 + b._lane * (blockH + 2);
+      var top = Math.max(0, ((startH - hStart) / totalH) * 100);
+      var height = Math.min(100 - top, (durH / totalH) * 100);
+      var laneWidth = 100 / maxLanes;
+      var left = b._lane * laneWidth;
       var isConflict = pBlocks.some(o => o !== b && o.start < b.end && o.end > b.start);
-      return `<div class="tl-block ${b.ticket.priority||'normal'}${isConflict?' conflict':''}" style="left:${left.toFixed(2)}%;width:${Math.max(2,width).toFixed(2)}%;top:${top}px;height:${blockH}px" onclick="openDrawer('${b.ticket.id}')" title="${esc(b.ticket.id)} ${esc(b.ticket.cat)}\n${fmtHM(b.start)}~${fmtHM(b.end)} (${b.hours.toFixed(1)}h)\n${esc(b.ticket.loc)}${sameDay(b.start,day)?'':'\n⚠️ 跨天工单'}"><span class="tl-block-text">${esc(b.ticket.id)} ${esc(b.ticket.cat)}</span></div>`;
+      return `<div class="vtl-block ${b.ticket.priority||'normal'}${isConflict?' conflict':''}" style="top:${top.toFixed(2)}%;height:${Math.max(1.5,height).toFixed(2)}%;left:${left.toFixed(1)}%;width:${laneWidth.toFixed(1)}%" onclick="openDrawer('${b.ticket.id}')" title="${esc(b.ticket.id)} ${esc(b.ticket.cat)}\n${fmtHM(b.start)}~${fmtHM(b.end)} (${b.hours.toFixed(1)}h)\n${esc(b.ticket.loc)}${sameDay(b.start,day)?'':'\n⚠️ 跨天工单'}"><span class="vtl-block-text">${esc(b.ticket.id)}<br>${esc(b.ticket.cat)}<br><small>${fmtHM(b._displayStart)}~${fmtHM(b._displayEnd)}</small></span></div>`;
     }).join('');
+
     var avgH = workerAvgHours(p);
-    return `<div class="tl-row" style="min-height:${rowH}px"><div class="tl-name-col"><b>${esc(p)}</b><br><small style="color:var(--text-3)">均${avgH!=null?avgH.toFixed(1)+'h/单':'无数据'}</small></div><div class="tl-track">${items||''}</div></div>`;
+    return `<div class="vtl-col"><div class="vtl-col-head"><b>${esc(p)}</b><br><small>${avgH!=null?avgH.toFixed(1)+'h/单':'—'}</small></div><div class="vtl-col-track">${items}</div></div>`;
   }).join('');
 
-  return `<div class="timeline-chart">${ruler}${rows}</div>`;
+  return `<div class="vtl-chart"><div class="vtl-time-col"><div class="vtl-col-head-placeholder"></div><div class="vtl-time-labels">${timeLabels}</div></div>${columns}</div>`;
 }
 
 function detectTimeConflicts(blocks) {

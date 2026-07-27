@@ -667,24 +667,125 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
 /* 驳回 */
 .reject-history { margin-top: 8px; padding: 10px 12px; border-radius: var(--radius); background: var(--tint-rose); color: #a51d1d; font-size: 12px; }
 
-/* ========== 师傅日程时间轴 ========== */
-.schedule-grid { overflow-x: auto; }
-.timeline-chart { min-width: 680px; }
-.tl-ruler { display: flex; align-items: center; border-bottom: 1px solid var(--hairline); padding-bottom: 6px; margin-bottom: 4px; }
-.tl-ruler .tl-name-col { width: 90px; min-width: 90px; flex: none; }
-.tl-ruler .tl-hour { flex: 1; font-size: 10px; color: var(--muted); text-align: center; }
-.tl-row { display: flex; align-items: stretch; min-height: 48px; border-bottom: 1px solid var(--hairline-soft); }
-.tl-row:last-child { border-bottom: none; }
-.tl-name-col { width: 90px; min-width: 90px; flex: none; padding: 6px; font-size: 12px; display: flex; flex-direction: column; justify-content: center; }
-.tl-track { flex: 1; position: relative; min-height: 42px; }
-.tl-block { position: absolute; top: 5px; height: 32px; border-radius: var(--radius-sm); padding: 2px 8px; font-size: 10px; display: flex; align-items: center; overflow: hidden; cursor: pointer; transition: all var(--transition); white-space: nowrap; border: 1px solid transparent; }
-.tl-block:hover { transform: translateY(-1px); box-shadow: var(--shadow); z-index: 5; }
-.tl-block.urgent { background: var(--tint-rose); border-color: #f5a3c4; color: #a51d1d; }
-.tl-block.high { background: var(--tint-peach); border-color: #fbc89a; color: #793400; }
-.tl-block.normal { background: var(--tint-sky); border-color: #a5cdec; color: #1a4a8a; }
-.tl-block.low { background: var(--surface); border-color: var(--hairline); color: var(--text-2); }
+/* ========== 师傅日程时间轴（竖版：X轴师傅，Y轴时间）========== */
+.schedule-grid { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* 竖版时间轴容器 */
+.vtl-chart {
+  display: flex;
+  gap: 0;
+  min-height: 600px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--card);
+}
+
+/* 左侧时间刻度列 */
+.vtl-time-col {
+  flex: none;
+  width: 54px;
+  min-width: 54px;
+  border-right: 1px solid var(--hairline);
+  background: var(--surface-soft);
+}
+.vtl-col-head-placeholder {
+  height: 52px;
+  border-bottom: 1px solid var(--hairline);
+}
+.vtl-time-labels {
+  position: relative;
+  height: 600px;
+}
+.vtl-hour {
+  position: absolute;
+  left: 0;
+  right: 0;
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  transform: translateY(-50%);
+  line-height: 1;
+}
+
+/* 师傅列 */
+.vtl-col {
+  flex: 1;
+  min-width: 100px;
+  border-right: 1px solid var(--hairline-soft);
+  display: flex;
+  flex-direction: column;
+}
+.vtl-col:last-child { border-right: none; }
+
+.vtl-col-head {
+  height: 52px;
+  padding: 8px 6px;
+  text-align: center;
+  font-size: 12px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface-soft);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.3;
+}
+.vtl-col-head b { font-size: 13px; color: var(--charcoal); }
+.vtl-col-head small { color: var(--muted); font-size: 10px; }
+
+/* 工单轨道（垂直） */
+.vtl-col-track {
+  flex: 1;
+  position: relative;
+  height: 600px;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(100% / 15 - 1px),
+    var(--hairline-soft) calc(100% / 15 - 1px),
+    var(--hairline-soft) calc(100% / 15)
+  );
+}
+
+/* 工单块（竖向） */
+.vtl-block {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  border-radius: var(--radius-sm);
+  padding: 4px 5px;
+  font-size: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all var(--transition);
+  border: 1px solid transparent;
+  display: flex;
+  align-items: flex-start;
+  z-index: 1;
+}
+.vtl-block:hover {
+  transform: scale(1.02);
+  box-shadow: var(--shadow);
+  z-index: 5;
+}
+.vtl-block.urgent { background: var(--tint-rose); border-color: #f5a3c4; color: #a51d1d; }
+.vtl-block.high { background: var(--tint-peach); border-color: #fbc89a; color: #793400; }
+.vtl-block.normal { background: var(--tint-sky); border-color: #a5cdec; color: #1a4a8a; }
+.vtl-block.low { background: var(--surface); border-color: var(--hairline); color: var(--text-2); }
+.vtl-block.conflict { box-shadow: 0 0 0 2px var(--danger) !important; z-index: 3; }
+
+.vtl-block-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  line-height: 1.3;
+  width: 100%;
+}
+.vtl-block-text small { font-weight: 400; color: inherit; opacity: .75; }
+
+/* 保留旧类名兼容冲突检测样式 */
 .tl-block.conflict { box-shadow: 0 0 0 2px var(--danger) !important; z-index: 3; }
-.tl-block-text { overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .month-timeline { display: flex; flex-wrap: wrap; gap: 8px; }
 .month-day { padding: 8px 12px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--hairline); font-size: 11px; min-width: 72px; text-align: center; }
 .month-day.conflict { border-color: var(--danger); background: var(--tint-rose); }
@@ -763,8 +864,13 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
   .drawer-body { padding: 16px 18px 80px; }
   .elements { grid-template-columns: 1fr; }
   /* 日程时间轴 */
-  .tl-name-col { width: 70px; min-width: 70px; font-size: 11px; }
-  .tl-ruler .tl-hour { font-size: 9px; }
+  .vtl-chart { min-height: 450px; }
+  .vtl-time-col { width: 40px; min-width: 40px; }
+  .vtl-time-labels { height: 450px; }
+  .vtl-col-track { height: 450px; }
+  .vtl-col { min-width: 80px; }
+  .vtl-col-head { padding: 6px 4px; font-size: 11px; }
+  .vtl-block { font-size: 9px; padding: 2px 3px; }
   .schedule-grid { margin: 0 -14px; padding: 0 14px; -webkit-overflow-scrolling: touch; }
   /* 模态框适配 */
   .modal { padding: 20px 16px; width: 100%; max-width: 92vw; }
@@ -793,7 +899,8 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
   .chart-box { height: 200px; }
   .chart-box.tall { height: 220px; }
   .drawer-section { padding: 12px 14px; }
-  .tl-block { font-size: 9px; height: 28px; }
+  .vtl-block { font-size: 8px; }
+  .vtl-col { min-width: 70px; }
   .month-day { min-width: 60px; padding: 6px 8px; font-size: 10px; }
   /* 顶栏更紧凑 */
   .topbar { padding: 6px 10px; gap: 4px; }
