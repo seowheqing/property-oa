@@ -446,6 +446,26 @@ app.delete('/api/users/:id', (req, res) => {
   res.json({ success: true });
 });
 
+// POST /api/staff/status — 师傅/管家更新自己的状态
+app.post('/api/staff/status', (req, res) => {
+  const { name, status } = req.body;
+  if (!name || !status) return res.status(400).json({ error: '缺少 name 或 status' });
+  const allowed = ['on', 'busy', 'off'];
+  if (!allowed.includes(status)) return res.status(400).json({ error: '无效状态值' });
+  // 状态存储在 staff_status 表
+  db.run(`CREATE TABLE IF NOT EXISTS staff_status (name TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'on', updated TEXT)`);
+  db.run('INSERT OR REPLACE INTO staff_status (name, status, updated) VALUES (?, ?, ?)', [name, status, new Date().toISOString()]);
+  saveDB();
+  res.json({ success: true, name, status });
+});
+
+// GET /api/staff/status — 获取所有人员状态
+app.get('/api/staff/status', (req, res) => {
+  db.run(`CREATE TABLE IF NOT EXISTS staff_status (name TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'on', updated TEXT)`);
+  const rows = queryAll('SELECT * FROM staff_status');
+  res.json({ data: rows });
+});
+
 // GET /api/tickets — 支持 ?community_id= 按小区筛选
 app.get('/api/tickets', (req, res) => {
   const communityId = req.query.community_id;

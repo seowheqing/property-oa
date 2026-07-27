@@ -45,6 +45,17 @@ async function load() {
 
   // 工单从 API 加载（按当前小区筛选）
   if (useApi) {
+    // 加载人员状态
+    try {
+      var stResp = await fetch(API_BASE + '/api/staff/status');
+      var stJson = await stResp.json();
+      if (stJson.data) {
+        stJson.data.forEach(function(r) {
+          var s = state.staff.find(function(x) { return x.name === r.name; });
+          if (s) s.status = r.status;
+        });
+      }
+    } catch(e) { /* ignore */ }
     try {
       var resp = await fetch(API_BASE + '/api/tickets?community_id=' + encodeURIComponent(currentCommunity));
       var json = await resp.json();
@@ -217,8 +228,8 @@ function applyRoleView() {
   var schedTitle = document.querySelector('#page-schedule .page-title');
   var schedNavBtn = $$('.nav button').find(b => b.dataset.page === 'schedule');
   if (isWorker || isKeeper) {
-    if (schedTitle) schedTitle.textContent = '我的日程';
-    if (schedNavBtn) schedNavBtn.textContent = '📅 我的日程';
+    if (schedTitle) schedTitle.textContent = '我的';
+    if (schedNavBtn) schedNavBtn.textContent = '👤 我的';
   } else {
     if (schedTitle) schedTitle.textContent = '师傅日程 · 排班与冲突检测';
     if (schedNavBtn) schedNavBtn.textContent = '📅 师傅日程';
@@ -226,8 +237,44 @@ function applyRoleView() {
   // 切换到师傅视图时默认显示工单页
   if (isWorker) { navTo('repair'); }
   else if (isKeeper) { navTo('complaint'); }
+  // 显示/隐藏"我的状态"卡片
+  var statusCard = $('#my-status-card');
+  if (statusCard) {
+    statusCard.style.display = (isWorker || isKeeper) ? '' : 'none';
+    if (isWorker || isKeeper) renderMyStatus();
+  }
   renderAll();
   if (openTicketId) openDrawer(openTicketId);
+}
+
+function renderMyStatus() {
+  var myName = roleWorkerName() || currentRole.replace('pm_keeper_', '');
+  var s = state.staff.find(function(x) { return x.name === myName; });
+  if (!s) return;
+  var label = s.status === 'on' ? '正在处理' : s.status === 'busy' ? '请假' : '休息';
+  var dotCls = s.status === 'on' ? 'on' : s.status === 'busy' ? 'busy' : 'off';
+  var labelEl = $('#my-status-label');
+  if (labelEl) labelEl.innerHTML = '<span class="staff-status"><span class="status-dot ' + dotCls + '"></span>' + label + '</span>';
+  var sel = $('#my-status-select');
+  if (sel) sel.value = s.status;
+}
+
+function updateMyStatus() {
+  var myName = roleWorkerName() || currentRole.replace('pm_keeper_', '');
+  var s = state.staff.find(function(x) { return x.name === myName; });
+  if (!s) { toast('未找到人员信息'); return; }
+  var newStatus = $('#my-status-select').value;
+  s.status = newStatus;
+  save();
+  // 同步到后端
+  fetch(API_BASE + '/api/staff/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: myName, status: newStatus })
+  }).catch(function() {});
+  renderMyStatus();
+  var label = newStatus === 'on' ? '正在处理' : newStatus === 'busy' ? '请假' : '休息';
+  toast('状态已更新为：' + label);
 }
 
 async function reloadCommunities() {
@@ -708,7 +755,7 @@ function buildActions(t) {
   var repair=t.type==='repair', keeper=!repair, mine=repair&&currentRole.startsWith('worker_')&&t.worker===roleWorkerName();
   if(t.status==='wait'){
     if(!isLead(t)) return hint(`仅${repair?'工程部':'物业'}主管可指派。`);
-    var people=activeStaff(repair?'维修工':'物业管家'); if(!people.length)return hint('暂无在岗处理人。');
+    var people=activeStaff(repair?'维修工':'物业管家'); if(!people.length)return hint('暂无可用处理人（全部请假/休息）。');
     var defHrs = CAT_DEFAULT_HOURS[t.cat] || 2;
     var timeOpts = [0.5,1,1.5,2,2.5,3,4,5,6,8].map(h => `<option value="${h}"${h===defHrs?' selected':''}>${h}小时</option>`).join('');
     return `<select id="assignWorker">${people.map(s=>`<option value="${esc(s.name)}">${esc(s.name)} · ${esc(s.skill)}</option>`).join('')}</select><select id="assignDuration" title="预计处理时间">${timeOpts}</select><button class="btn" onclick="assignTicket('${t.id}')">确认指派</button>`;
@@ -787,14 +834,14 @@ function afterAction(id,msg){toast(msg);renderAll();renderDashboard();if(id)open
 function staffMetrics(name){var all=state.tickets.filter(t=>t.worker===name),done=all.filter(t=>t.status==='done'),active=all.filter(t=>t.status==='doing'||t.status==='confirm'),d=done.map(t=>durHours(t.created,t.finished)).filter(x=>x!=null),avg=d.length?(d.reduce((a,b)=>a+b,0)/d.length):null,on=done.filter(isOnTime).length,cats=[...new Set(all.map(t=>t.cat))];return{all,done,active,avg,onRate:done.length?Math.round(on/done.length*100):0,cats};}
 function performanceScore(m){if(!m.done.length)return 60;return Math.max(0,Math.min(100,Math.round(m.onRate*.7+Math.max(0,30-(m.avg||0)))));}
 function renderPerformance(){var body=$('#tbody-performance');if(!body)return;body.innerHTML=state.staff.map(s=>{var m=staffMetrics(s.name),score=performanceScore(m),cls=score>=85?'good':score<70?'warn':'';return `<tr style="cursor:pointer" onclick="openStaffProfile('${s.id}')"><td>${avatar(s.name,staffColor(s.name))}<b>${esc(s.name)}</b><br><small>${esc(s.role)} · ${esc(s.skill)}</small></td><td class="type-list">${m.cats.length?m.cats.map(c=>`<span class="tag cat">${esc(c)}</span>`).join(' '):'暂无工单'}</td><td>${m.all.length}</td><td>${m.done.length}</td><td>${m.active.length}</td><td>${m.avg==null?'—':m.avg.toFixed(1)+'h'}</td><td>${m.done.length?m.onRate+'%':'—'}</td><td><span class="performance-score ${cls}">${score}</span><small>/100</small></td></tr>`}).join('');}
-function renderStaff(){var tbody=$('#tbody-staff');tbody.innerHTML=state.staff.map(s=>{var m=staffMetrics(s.name),st=s.status==='on'?'在岗':s.status==='busy'?'忙碌':'休息',dot=s.status==='on'?'on':s.status==='busy'?'busy':'off';return `<tr style="cursor:pointer" onclick="openStaffProfile('${s.id}')"><td>${avatar(s.name,staffColor(s.name))}${esc(s.name)}</td><td>${esc(s.role)}</td><td>${esc(s.skill)}</td><td class="mono">${esc(s.phone)}</td><td><span class="staff-status"><span class="status-dot ${dot}"></span>${st}</span></td><td><b>${m.done.length}</b> / 共${m.all.length}</td><td><button class="btn sm ghost" onclick="event.stopPropagation();openStaffModal('${s.id}')">编辑</button> <button class="btn sm danger" onclick="event.stopPropagation();deleteStaff('${s.id}')">删除</button></td></tr>`}).join('');}
+function renderStaff(){var tbody=$('#tbody-staff');tbody.innerHTML=state.staff.map(s=>{var m=staffMetrics(s.name),st=s.status==='on'?'正在处理':s.status==='busy'?'请假':'休息',dot=s.status==='on'?'on':s.status==='busy'?'busy':'off';return `<tr style="cursor:pointer" onclick="openStaffProfile('${s.id}')"><td>${avatar(s.name,staffColor(s.name))}${esc(s.name)}</td><td>${esc(s.role)}</td><td>${esc(s.skill)}</td><td class="mono">${esc(s.phone)}</td><td><span class="staff-status"><span class="status-dot ${dot}"></span>${st}</span></td><td><b>${m.done.length}</b> / 共${m.all.length}</td><td><button class="btn sm ghost" onclick="event.stopPropagation();openStaffModal('${s.id}')">编辑</button> <button class="btn sm danger" onclick="event.stopPropagation();deleteStaff('${s.id}')">删除</button></td></tr>`}).join('');}
 
 function openStaffProfile(id){
   var s=state.staff.find(x=>x.id===id);if(!s)return;
   var m=staffMetrics(s.name);
   var score=performanceScore(m);
   var cls=score>=85?'good':score<70?'warn':'';
-  var st=s.status==='on'?'在岗':s.status==='busy'?'忙碌':'休息';
+  var st=s.status==='on'?'正在处理':s.status==='busy'?'请假':'休息';
   // 最近工单列表
   var recentTickets=state.tickets.filter(t=>t.worker===s.name).sort((a,b)=>new Date(b.created)-new Date(a.created)).slice(0,10);
   var ticketRows=recentTickets.map(t=>`<tr onclick="openDrawer('${t.id}')"><td class="mono">${esc(t.id)}</td><td><span class="tag cat">${esc(t.cat)}</span></td><td>${esc(t.loc)}</td><td><span class="tag ${STATUS_CLASS[t.status]}">${STATUS_LABEL[t.status]}</span></td><td>${fmtTime(t.created)}</td><td>${t.status==='done'&&t.finished?durHours(t.created,t.finished)+'h':'—'}</td></tr>`).join('');
@@ -967,7 +1014,7 @@ function initSchedule() {
   } else {
     // 非主管只能看自己
     var myName = roleWorkerName() || currentRole.replace('pm_keeper_', '');
-    sel.innerHTML = `<option value="${esc(myName)}">我的日程</option>`;
+    sel.innerHTML = `<option value="${esc(myName)}">我的</option>`;
     sel.value = myName;
     sel.disabled = true;
   }
