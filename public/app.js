@@ -78,9 +78,12 @@ function save() { saveLocal(); }
 async function apiPatch(recordId, updates) {
   if (!useApi || !recordId) return;
   try {
+    var headers = { 'Content-Type': 'application/json' };
+    var token = localStorage.getItem('auth_token');
+    if (token) headers['Authorization'] = 'Bearer ' + token;
     await fetch(API_BASE + '/api/tickets/' + recordId, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify(updates)
     });
   } catch(e) { console.warn('API更新失败', e); }
@@ -1478,6 +1481,7 @@ function doLogin(){
   fetch(API_BASE+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone,password:pwd})}).then(r=>r.json()).then(d=>{
     if(d.success){
       localStorage.setItem('login_user',JSON.stringify(d.user));
+      if(d.token) localStorage.setItem('auth_token',d.token);
       enterApp(d.user);
     } else {
       $('#login-error').textContent=d.error||'登录失败';
@@ -1620,6 +1624,7 @@ function showLoginPage(){
 }
 function doLogout(){
   localStorage.removeItem('login_user');
+  localStorage.removeItem('auth_token');
   // 销毁所有图表实例，避免切换用户后尺寸异常
   Object.keys(charts).forEach(function(k) {
     try { charts[k].dispose(); } catch(e) {}

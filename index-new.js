@@ -4,6 +4,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
 const config = require('./config');
 const { initDB } = require('./db');
 const { verifyToken } = require('./middleware/auth');
@@ -20,12 +21,18 @@ app.use(cors());
 app.use(express.json());
 app.use(verifyToken); // 所有请求尝试解析 token（不强制）
 
+// 登录接口限流：每 IP 每分钟最多 5 次
+const loginLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: { error: '请求过于频繁，请稍后再试' } });
+app.use('/api/login', loginLimiter);
+app.use('/api/register', loginLimiter);
+app.use('/api/reset-password', loginLimiter);
+
 // 静态文件
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(config.UPLOAD_DIR));
 
 // 挂载路由
-app.use('/api', authRoutes);
+app.use('/api', authRoutes);  // 登录/注册/重置 — 无需鉴权
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/communities', communityRoutes);
 app.use('/api/staff', staffRoutes);

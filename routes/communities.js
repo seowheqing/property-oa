@@ -4,8 +4,9 @@
 const express = require('express');
 const router = express.Router();
 const { queryAll, queryOne, run, saveDB } = require('../db');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 
-// GET /api/communities
+// GET /api/communities (public — filtered by staff_name)
 router.get('/', (req, res) => {
   const staffName = req.query.staff_name;
   let communities;
@@ -25,8 +26,8 @@ router.get('/', (req, res) => {
   res.json({ data: communities });
 });
 
-// POST /api/communities
-router.post('/', (req, res) => {
+// POST /api/communities (admin only)
+router.post('/', requireAdmin, (req, res) => {
   const { name, address, allowedStaff } = req.body;
   if (!name) return res.status(400).json({ error: '小区名称必填' });
   const id = 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -43,8 +44,8 @@ router.post('/', (req, res) => {
   }
 });
 
-// PATCH /api/communities/:id
-router.patch('/:id', (req, res) => {
+// PATCH /api/communities/:id (admin only)
+router.patch('/:id', requireAdmin, (req, res) => {
   const { name, address, allowedStaff } = req.body;
   const sets = [], values = [];
   if (name !== undefined) { sets.push('name = ?'); values.push(name); }
@@ -61,8 +62,8 @@ router.patch('/:id', (req, res) => {
   res.json({ success: true, community: row });
 });
 
-// DELETE /api/communities/:id
-router.delete('/:id', (req, res) => {
+// DELETE /api/communities/:id (admin only)
+router.delete('/:id', requireAdmin, (req, res) => {
   if (req.params.id === 'default') return res.status(400).json({ error: '默认小区不能删除' });
   run("UPDATE tickets SET community_id = 'default' WHERE community_id = ?", [req.params.id]);
   run('DELETE FROM communities WHERE id = ?', [req.params.id]);
@@ -70,8 +71,8 @@ router.delete('/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// POST /api/communities/:id/invite-code
-router.post('/:id/invite-code', (req, res) => {
+// POST /api/communities/:id/invite-code (admin only)
+router.post('/:id/invite-code', requireAdmin, (req, res) => {
   const communityId = req.params.id;
   const community = queryOne('SELECT * FROM communities WHERE id = ?', [communityId]);
   if (!community) return res.status(404).json({ error: '小区不存在' });

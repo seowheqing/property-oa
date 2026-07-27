@@ -3,7 +3,8 @@ services:
     name: property-oa
     runtime: node
     buildCommand: npm install
-    startCommand: node index.js
+    startCommand: node index-new.js
+    healthCheckPath: /api/staff/status
     envVars:
       - key: FEISHU_APP_ID
         sync: false
@@ -13,3 +14,5 @@ services:
         value: PdZ0bstWWasvZFsWa3gc5PHznMb
       - key: FEISHU_TABLE_ID
         value: tbloxkuixNZIp76r
+      - key: JWT_SECRET
+        generateValue: true

@@ -8,6 +8,7 @@ const multer = require('multer');
 const router = express.Router();
 const { queryAll, queryOne, run, saveDB } = require('../db');
 const config = require('../config');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 // 上传配置
 if (!fs.existsSync(config.UPLOAD_DIR)) fs.mkdirSync(config.UPLOAD_DIR, { recursive: true });
@@ -169,8 +170,8 @@ router.patch('/:id', (req, res) => {
   }
 });
 
-// DELETE /api/tickets/:id
-router.delete('/:id', (req, res) => {
+// DELETE /api/tickets/:id (admin only)
+router.delete('/:id', requireAdmin, (req, res) => {
   run('DELETE FROM tickets WHERE id = ?', [req.params.id]);
   saveDB();
   res.json({ success: true });
