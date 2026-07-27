@@ -427,6 +427,7 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
 .tag.doing { background: var(--tint-sky); color: #1a4a8a; }
 .tag.confirm { background: var(--tint-lavender); color: #391c57; }
 .tag.done { background: var(--tint-mint); color: #0f6b23; }
+.tag.pending { background: var(--tint-yellow); color: #92600a; }
 .tag.cat { background: var(--tint-mint); color: #0d9488; }
 .tag.ai { background: var(--tint-lavender); color: #391c57; }
 .tag.manual { background: var(--surface); color: var(--text-2); }
