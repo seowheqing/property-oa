@@ -172,9 +172,9 @@
           <span style="font-size:13px;color:var(--text-2)">当前状态：</span>
           <span id="my-status-label" style="font-weight:600"></span>
           <select id="my-status-select" style="padding:6px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-            <option value="on">正在处理</option>
-            <option value="busy">请假</option>
-            <option value="off">休息</option>
+            <option value="on">在岗待命</option>
+            <option value="busy">正在处理</option>
+            <option value="off">请假</option>
           </select>
           <button class="btn sm" onclick="updateMyStatus()">更新状态</button>
         </div>
@@ -283,7 +283,7 @@
       <div class="form-row"><label>电话（登录账号）</label><input id="f-phone" placeholder="13800000000"></div>
       <div class="form-row"><label>登录密码</label><input id="f-password" type="password" placeholder="设置登录密码"></div>
       <div class="form-row"><label>在岗状态</label>
-        <select id="f-status"><option value="on">正在处理</option><option value="busy">请假</option><option value="off">休息</option></select>
+        <select id="f-status"><option value="on">在岗待命</option><option value="busy">正在处理</option><option value="off">请假</option></select>
       </div>
       <div class="form-row"><label>已处理工单数</label><input id="f-done" type="number" value="0"></div>
       <div class="modal-foot">
