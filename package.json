@@ -2,11 +2,12 @@
   "name": "property-oa-server",
   "version": "1.0.0",
   "description": "物业工单系统后端 - 飞书多维表格对接",
-  "main": "index.js",
+  "main": "index-new.js",
   "scripts": {
-    "start": "node index.js",
-    "start:new": "node index-new.js",
-    "dev": "node index.js"
+    "start": "node index-new.js",
+    "start:legacy": "node index.js",
+    "dev": "node index-new.js",
+    "migrate": "node migrate-passwords.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
