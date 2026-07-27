@@ -570,9 +570,29 @@ function renderCommunityList() {
       '<span style="color:var(--text-3);font-size:11px;flex:1">' + esc(c.address || '') + '</span>' +
       '<span style="font-size:11px;color:var(--primary)">👷 ' + esc(staffNames) + '</span>' +
       '<button class="btn sm ghost" onclick="editCommunityPermissions(\'' + c.id + '\')">编辑权限</button>' +
+      '<button class="btn sm" onclick="getInviteCode(\'' + c.id + '\')" title="生成/查看邀请码">📋 邀请码</button>' +
       (isDefault ? '' : '<button class="btn sm danger" onclick="deleteCommunity(\'' + c.id + '\')">删除</button>') +
       '</div>';
   }).join('');
+}
+
+async function getInviteCode(communityId) {
+  try {
+    var resp = await fetch(API_BASE + '/api/communities/' + communityId + '/invite-code', { method: 'POST' });
+    var json = await resp.json();
+    if (json.code) {
+      var c = state.communities.find(function(x) { return x.id === communityId; });
+      var name = c ? c.name : communityId;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(json.code).then(function() {
+          toast('邀请码 ' + json.code + ' 已复制到剪贴板');
+        });
+      }
+      alert('「' + name + '」的邀请码：\n\n' + json.code + '\n\n将此码发给师傅，师傅在登录页点"注册"输入即可申请加入。');
+    } else {
+      toast('生成失败');
+    }
+  } catch(e) { toast('网络错误'); }
 }
 
 function editCommunityPermissions(communityId) {
@@ -983,6 +1003,70 @@ function loadReminderInterval(){
     var sel=$('#sla-interval');
     if(sel)sel.value=String(d.intervalMinutes);
   }).catch(()=>{});
+  // 加载待审核注册
+  loadPendingRegistrations();
+}
+
+function loadPendingRegistrations() {
+  var listEl = $('#pending-reg-list');
+  var countEl = $('#pending-count');
+  if (!listEl) return;
+  fetch(API_BASE + '/api/pending-registrations').then(function(r) { return r.json(); }).then(function(json) {
+    var data = json.data || [];
+    if (countEl) countEl.textContent = data.length ? '(' + data.length + '条待审核)' : '';
+    if (!data.length) {
+      listEl.innerHTML = '<span style="color:var(--muted)">暂无待审核申请</span>';
+      return;
+    }
+    listEl.innerHTML = data.map(function(r) {
+      var roleLabel = r.role === 'worker' ? '维修工' : r.role === 'keeper' ? '物业管家' : r.role;
+      var community = state.communities.find(function(c) { return c.id === r.community_id; });
+      var cName = community ? community.name : r.community_id;
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px;border-bottom:1px solid var(--border);flex-wrap:wrap">' +
+        '<b>' + esc(r.name) + '</b>' +
+        '<span class="tag cat">' + esc(roleLabel) + '</span>' +
+        '<span style="color:var(--text-2);font-size:12px">' + esc(r.phone) + '</span>' +
+        '<span style="color:var(--text-3);font-size:11px">技能: ' + esc(r.skill || '—') + '</span>' +
+        '<span style="color:var(--primary);font-size:11px">→ ' + esc(cName) + '</span>' +
+        '<span style="color:var(--muted);font-size:11px">' + esc(r.created ? r.created.slice(0, 16).replace('T', ' ') : '') + '</span>' +
+        '<span style="flex:1"></span>' +
+        '<button class="btn sm green" onclick="approveRegistration(' + r.id + ')">通过</button>' +
+        '<button class="btn sm danger" onclick="rejectRegistration(' + r.id + ')">拒绝</button>' +
+        '</div>';
+    }).join('');
+  }).catch(function() {
+    listEl.innerHTML = '<span style="color:var(--muted)">加载失败</span>';
+  });
+}
+
+function approveRegistration(id) {
+  fetch(API_BASE + '/api/pending-registrations/' + id + '/approve', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) {
+        toast('已通过：' + (d.user ? d.user.name : ''));
+        // 添加到本地 staff 列表
+        if (d.user) {
+          var role = d.user.role === 'worker' ? '维修工' : '物业管家';
+          state.staff.push({ id: 's' + Date.now(), name: d.user.name, role: role, skill: '', phone: d.user.phone, status: 'on', done: 0 });
+          save();
+          renderStaff();
+        }
+        loadPendingRegistrations();
+      } else {
+        toast(d.error || '操作失败');
+      }
+    }).catch(function() { toast('网络错误'); });
+}
+
+function rejectRegistration(id) {
+  if (!confirm('确定拒绝该注册申请？')) return;
+  fetch(API_BASE + '/api/pending-registrations/' + id + '/reject', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) { toast('已拒绝'); loadPendingRegistrations(); }
+      else toast(d.error || '操作失败');
+    }).catch(function() { toast('网络错误'); });
 }
 
 function showReport(){
@@ -1218,6 +1302,44 @@ function doLogin(){
       $('#login-error').textContent=d.error||'登录失败';
     }
   }).catch(()=>{$('#login-error').textContent='网络错误';});
+}
+
+function showRegisterForm() {
+  $('#login-form').style.display = 'none';
+  $('#register-form').style.display = '';
+  $('#reg-error').textContent = '';
+  $('#reg-success').textContent = '';
+}
+function showLoginForm() {
+  $('#register-form').style.display = 'none';
+  $('#login-form').style.display = '';
+}
+
+function doRegister() {
+  var inviteCode = $('#reg-invite').value.trim();
+  var name = $('#reg-name').value.trim();
+  var phone = $('#reg-phone').value.trim();
+  var password = $('#reg-password').value;
+  var role = $('#reg-role').value;
+  var skill = $('#reg-skill').value.trim();
+  $('#reg-error').textContent = '';
+  $('#reg-success').textContent = '';
+  if (!inviteCode) { $('#reg-error').textContent = '请输入邀请码'; return; }
+  if (!name) { $('#reg-error').textContent = '请输入姓名'; return; }
+  if (!phone || !/^1[3-9]\d{9}$/.test(phone)) { $('#reg-error').textContent = '请输入正确的11位手机号'; return; }
+  if (!password || password.length < 4) { $('#reg-error').textContent = '密码至少4位'; return; }
+  fetch(API_BASE + '/api/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: phone, password: password, name: name, role: role, skill: skill, inviteCode: inviteCode })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) {
+      $('#reg-success').textContent = '✓ ' + d.message;
+      $('#reg-error').textContent = '';
+    } else {
+      $('#reg-error').textContent = d.error || '注册失败';
+    }
+  }).catch(function() { $('#reg-error').textContent = '网络错误'; });
 }
 function enterApp(user){
   $('#login-page').style.display='none';

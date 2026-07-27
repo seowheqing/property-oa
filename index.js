@@ -166,6 +166,30 @@ async function initDB() {
     )
   `);
 
+  // 小区邀请码表
+  db.run(`
+    CREATE TABLE IF NOT EXISTS invite_codes (
+      code TEXT PRIMARY KEY,
+      community_id TEXT NOT NULL,
+      created TEXT NOT NULL
+    )
+  `);
+
+  // 待审核注册表
+  db.run(`
+    CREATE TABLE IF NOT EXISTS pending_registrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      phone TEXT NOT NULL,
+      password TEXT NOT NULL,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'worker',
+      skill TEXT DEFAULT '',
+      community_id TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created TEXT NOT NULL
+    )
+  `);
+
   // 兼容旧数据库：如果 session_id 列不存在则添加
   try {
     db.run(`ALTER TABLE tickets ADD COLUMN session_id TEXT DEFAULT ''`);
@@ -464,6 +488,87 @@ app.get('/api/staff/status', (req, res) => {
   db.run(`CREATE TABLE IF NOT EXISTS staff_status (name TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'on', updated TEXT)`);
   const rows = queryAll('SELECT * FROM staff_status');
   res.json({ data: rows });
+});
+
+// ============ 邀请码 & 自助注册 ============
+
+// POST /api/communities/:id/invite-code — 生成/获取小区邀请码
+app.post('/api/communities/:id/invite-code', (req, res) => {
+  const communityId = req.params.id;
+  const community = queryOne('SELECT * FROM communities WHERE id = ?', [communityId]);
+  if (!community) return res.status(404).json({ error: '小区不存在' });
+  // 检查是否已有邀请码
+  let existing = queryOne('SELECT * FROM invite_codes WHERE community_id = ?', [communityId]);
+  if (existing) return res.json({ success: true, code: existing.code, community_id: communityId });
+  // 生成6位邀请码
+  const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+  db.run('INSERT INTO invite_codes (code, community_id, created) VALUES (?, ?, ?)', [code, communityId, new Date().toISOString()]);
+  saveDB();
+  res.json({ success: true, code, community_id: communityId });
+});
+
+// GET /api/communities/:id/invite-code — 查看小区邀请码
+app.get('/api/communities/:id/invite-code', (req, res) => {
+  const row = queryOne('SELECT * FROM invite_codes WHERE community_id = ?', [req.params.id]);
+  if (!row) return res.json({ code: null });
+  res.json({ code: row.code, community_id: row.community_id });
+});
+
+// POST /api/register — 师傅自助注册（需邀请码）
+app.post('/api/register', (req, res) => {
+  const { phone, password, name, role, skill, inviteCode } = req.body;
+  if (!phone || !password || !name) return res.status(400).json({ error: '手机号、密码、姓名必填' });
+  if (!inviteCode) return res.status(400).json({ error: '请输入邀请码' });
+  // 校验邀请码
+  const invite = queryOne('SELECT * FROM invite_codes WHERE code = ?', [inviteCode.toUpperCase()]);
+  if (!invite) return res.status(400).json({ error: '邀请码无效' });
+  // 检查手机号是否已注册或已提交
+  const existUser = queryOne('SELECT * FROM users WHERE phone = ?', [phone]);
+  if (existUser) return res.status(400).json({ error: '该手机号已注册，请直接登录' });
+  const existPending = queryOne("SELECT * FROM pending_registrations WHERE phone = ? AND status = 'pending'", [phone]);
+  if (existPending) return res.status(400).json({ error: '该手机号已提交注册申请，请等待审核' });
+  // 写入待审核表
+  db.run(
+    'INSERT INTO pending_registrations (phone, password, name, role, skill, community_id, status, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [phone, password, name, role || 'worker', skill || '', invite.community_id, 'pending', new Date().toISOString()]
+  );
+  saveDB();
+  res.json({ success: true, message: '注册申请已提交，请等待主管审核' });
+});
+
+// GET /api/pending-registrations — 获取待审核列表
+app.get('/api/pending-registrations', (req, res) => {
+  const rows = queryAll("SELECT * FROM pending_registrations WHERE status = 'pending' ORDER BY created DESC");
+  res.json({ data: rows });
+});
+
+// POST /api/pending-registrations/:id/approve — 审核通过
+app.post('/api/pending-registrations/:id/approve', (req, res) => {
+  const reg = queryOne('SELECT * FROM pending_registrations WHERE id = ?', [req.params.id]);
+  if (!reg) return res.status(404).json({ error: '记录不存在' });
+  if (reg.status !== 'pending') return res.status(400).json({ error: '该申请已处理' });
+  // 创建用户账号
+  try {
+    db.run('INSERT INTO users (phone, password, name, role) VALUES (?, ?, ?, ?)', [reg.phone, reg.password, reg.name, reg.role]);
+  } catch(e) {
+    if (e.message.includes('UNIQUE')) return res.status(400).json({ error: '该手机号已注册' });
+    return res.status(500).json({ error: e.message });
+  }
+  // 添加小区权限
+  db.run('INSERT OR IGNORE INTO community_permissions (community_id, staff_name) VALUES (?, ?)', [reg.community_id, reg.name]);
+  // 更新状态
+  db.run("UPDATE pending_registrations SET status = 'approved' WHERE id = ?", [req.params.id]);
+  saveDB();
+  res.json({ success: true, message: '已通过，用户可登录', user: { phone: reg.phone, name: reg.name, role: reg.role, community_id: reg.community_id } });
+});
+
+// POST /api/pending-registrations/:id/reject — 审核拒绝
+app.post('/api/pending-registrations/:id/reject', (req, res) => {
+  const reg = queryOne('SELECT * FROM pending_registrations WHERE id = ?', [req.params.id]);
+  if (!reg) return res.status(404).json({ error: '记录不存在' });
+  db.run("UPDATE pending_registrations SET status = 'rejected' WHERE id = ?", [req.params.id]);
+  saveDB();
+  res.json({ success: true, message: '已拒绝' });
 });
 
 // GET /api/tickets — 支持 ?community_id= 按小区筛选

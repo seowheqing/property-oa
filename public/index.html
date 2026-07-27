@@ -12,7 +12,8 @@
 
   <!-- ============ 登录页 ============ -->
   <div id="login-page" style="display:none;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)">
-    <div style="background:var(--card);border-radius:16px;padding:36px;width:360px;max-width:90vw;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid var(--border)">
+    <!-- 登录表单 -->
+    <div id="login-form" style="background:var(--card);border-radius:16px;padding:36px;width:360px;max-width:90vw;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid var(--border)">
       <h2 style="text-align:center;margin-bottom:6px">🏠 工单系统</h2>
       <p style="text-align:center;color:var(--text-2);font-size:13px;margin-bottom:24px">工单协同管理系统</p>
       <div style="margin-bottom:14px">
@@ -26,6 +27,47 @@
       <div id="jigsaw-container" style="margin-bottom:16px"></div>
       <button class="btn" style="width:100%;padding:12px;font-size:15px" onclick="doLogin()" id="login-btn">登 录</button>
       <div id="login-error" style="color:var(--danger);font-size:13px;text-align:center;margin-top:12px"></div>
+      <div style="text-align:center;margin-top:16px">
+        <a href="javascript:void(0)" onclick="showRegisterForm()" style="color:var(--primary);font-size:13px;text-decoration:none">没有账号？使用邀请码注册 →</a>
+      </div>
+    </div>
+    <!-- 注册表单 -->
+    <div id="register-form" style="display:none;background:var(--card);border-radius:16px;padding:36px;width:380px;max-width:90vw;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid var(--border)">
+      <h2 style="text-align:center;margin-bottom:6px">📝 注册账号</h2>
+      <p style="text-align:center;color:var(--text-2);font-size:13px;margin-bottom:20px">输入邀请码加入小区，主管审核后即可使用</p>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:4px">邀请码</label>
+        <input id="reg-invite" type="text" placeholder="6位邀请码（向主管获取）" maxlength="6" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:16px;text-transform:uppercase;letter-spacing:2px;text-align:center">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:4px">姓名</label>
+        <input id="reg-name" type="text" placeholder="如：张师傅" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:4px">手机号</label>
+        <input id="reg-phone" type="tel" placeholder="11位手机号" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:4px">密码</label>
+        <input id="reg-password" type="password" placeholder="设置登录密码" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:4px">角色</label>
+        <select id="reg-role" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+          <option value="worker">维修工</option>
+          <option value="keeper">物业管家</option>
+        </select>
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:4px">技能（选填）</label>
+        <input id="reg-skill" type="text" placeholder="如：水暖/电路" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+      </div>
+      <button class="btn" style="width:100%;padding:12px;font-size:15px" onclick="doRegister()">提交注册申请</button>
+      <div id="reg-error" style="color:var(--danger);font-size:13px;text-align:center;margin-top:12px"></div>
+      <div id="reg-success" style="color:var(--success);font-size:13px;text-align:center;margin-top:12px"></div>
+      <div style="text-align:center;margin-top:16px">
+        <a href="javascript:void(0)" onclick="showLoginForm()" style="color:var(--primary);font-size:13px;text-decoration:none">← 返回登录</a>
+      </div>
     </div>
   </div>
 
@@ -199,6 +241,13 @@
     <section class="page" id="page-admin">
       <div class="page-title">管理平台 · 人员管理</div>
       <div class="page-sub">对维修工 / 物业管家等真人进行增删改查（保存在本地 localStorage）</div>
+
+      <!-- 待审核注册 -->
+      <div class="card" id="pending-reg-card" style="margin-bottom:16px">
+        <h3 style="font-size:14px;margin-bottom:12px">📬 待审核注册申请 <span id="pending-count" style="font-size:12px;color:var(--muted)"></span></h3>
+        <div id="pending-reg-list" style="font-size:13px">加载中...</div>
+      </div>
+
       <div class="card">
         <div class="toolbar">
           <button class="btn" onclick="openStaffModal()">＋ 新增人员</button>

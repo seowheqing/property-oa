@@ -61,6 +61,7 @@
 - 滑动拼图验证码（防机器人）
 - 登录后自动匹配角色权限（主管/维修工/管家）
 - 主管在管理平台添加用户时设置手机号和密码
+- **邀请码自助注册**：每个小区可生成6位邀请码，师傅在登录页点"注册"输入邀请码提交申请，主管审核通过后自动创建账号并授权小区
 
 ### 角色体系
 | 角色 | 能力 | 可见范围 |
@@ -122,6 +123,12 @@ node seed-test.js
 | POST | `/api/jzm/trigger-event` | 触发秒懂流程事件 |
 | POST | `/api/staff/status` | 师傅更新自己的状态 |
 | GET | `/api/staff/status` | 获取所有人员状态 |
+| POST | `/api/communities/:id/invite-code` | 生成/获取小区邀请码 |
+| GET | `/api/communities/:id/invite-code` | 查看小区邀请码 |
+| POST | `/api/register` | 师傅自助注册（需邀请码） |
+| GET | `/api/pending-registrations` | 获取待审核注册列表 |
+| POST | `/api/pending-registrations/:id/approve` | 审核通过 |
+| POST | `/api/pending-registrations/:id/reject` | 审核拒绝 |
 
 ### 创建工单示例
 
