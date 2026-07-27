@@ -495,11 +495,21 @@ function initCommunitySelect() {
     localStorage.setItem(LS_COMMUNITY, currentCommunity);
     var name = state.communities.find(function(c) { return c.id === currentCommunity; });
     toast('已切换到：' + (name ? name.name : currentCommunity));
+    updateLogo();
     reloadTickets();
   };
   // 非主管隐藏小区管理按钮
   var mgBtn = document.querySelector('.community-switch .btn');
   if (mgBtn) mgBtn.style.display = (currentRole === 'eng_lead') ? '' : 'none';
+  updateLogo();
+}
+
+function updateLogo() {
+  var logo = $('#app-logo');
+  if (!logo) return;
+  var c = state.communities.find(function(x) { return x.id === currentCommunity; });
+  var name = c ? c.name : '';
+  logo.textContent = '🏢 ' + (name && name !== '默认小区' ? name + '工单系统' : '工单系统');
 }
 
 async function reloadTickets() {
