@@ -908,8 +908,8 @@ function afterAction(id,msg){toast(msg);enhanceState();renderAll();renderDashboa
 
 function staffMetrics(name){var all=state.tickets.filter(t=>t.worker===name),done=all.filter(t=>t.status==='done'),active=all.filter(t=>t.status==='doing'||t.status==='confirm'),d=done.map(t=>durHours(t.created,t.finished)).filter(x=>x!=null),avg=d.length?(d.reduce((a,b)=>a+b,0)/d.length):null,on=done.filter(isOnTime).length,cats=[...new Set(all.map(t=>t.cat))];return{all,done,active,avg,onRate:done.length?Math.round(on/done.length*100):0,cats};}
 function performanceScore(m){if(!m.done.length)return 60;return Math.max(0,Math.min(100,Math.round(m.onRate*.7+Math.max(0,30-(m.avg||0)))));}
-function renderPerformance(){var body=$('#tbody-performance');if(!body)return;body.innerHTML=state.staff.map(s=>{var m=staffMetrics(s.name),score=performanceScore(m),cls=score>=85?'good':score<70?'warn':'';return `<tr style="cursor:pointer" onclick="openStaffProfile('${s.id}')"><td>${avatar(s.name,staffColor(s.name))}<b>${esc(s.name)}</b><br><small>${esc(s.role)} · ${esc(s.skill)}</small></td><td class="type-list">${m.cats.length?m.cats.map(c=>`<span class="tag cat">${esc(c)}</span>`).join(' '):'暂无工单'}</td><td>${m.all.length}</td><td>${m.done.length}</td><td>${m.active.length}</td><td>${m.avg==null?'—':m.avg.toFixed(1)+'h'}</td><td>${m.done.length?m.onRate+'%':'—'}</td><td><span class="performance-score ${cls}">${score}</span><small>/100</small></td></tr>`}).join('');}
-function renderStaff(){var tbody=$('#tbody-staff');tbody.innerHTML=state.staff.map(s=>{var m=staffMetrics(s.name),st=s.status==='on'?'在岗待命':s.status==='busy'?'正在处理':'请假',dot=s.status==='on'?'on':s.status==='busy'?'busy':'off';return `<tr style="cursor:pointer" onclick="openStaffProfile('${s.id}')"><td>${avatar(s.name,staffColor(s.name))}${esc(s.name)}</td><td>${esc(s.role)}</td><td>${esc(s.skill)}</td><td class="mono">${esc(s.phone)}</td><td><span class="staff-status"><span class="status-dot ${dot}"></span>${st}</span></td><td><b>${m.done.length}</b> / 共${m.all.length}</td><td><button class="btn sm ghost" onclick="event.stopPropagation();openStaffModal('${s.id}')">编辑</button> <button class="btn sm danger" onclick="event.stopPropagation();deleteStaff('${s.id}')">删除</button></td></tr>`}).join('');}
+function renderPerformance(){var body=$('#tbody-performance');if(!body)return;var staffList=state.staff.filter(s=>s.role==='维修工'||s.role==='物业管家');body.innerHTML=staffList.map(s=>{var m=staffMetrics(s.name),score=performanceScore(m),cls=score>=85?'good':score<70?'warn':'';return `<tr style="cursor:pointer" onclick="openStaffProfile('${s.id}')"><td>${avatar(s.name,staffColor(s.name))}<b>${esc(s.name)}</b><br><small>${esc(s.role)} · ${esc(s.skill)}</small></td><td class="type-list">${m.cats.length?m.cats.map(c=>`<span class="tag cat">${esc(c)}</span>`).join(' '):'暂无工单'}</td><td>${m.all.length}</td><td>${m.done.length}</td><td>${m.active.length}</td><td>${m.avg==null?'—':m.avg.toFixed(1)+'h'}</td><td>${m.done.length?m.onRate+'%':'—'}</td><td><span class="performance-score ${cls}">${score}</span><small>/100</small></td></tr>`}).join('');}
+function renderStaff(){var tbody=$('#tbody-staff');var staffList=state.staff.filter(s=>s.role==='维修工'||s.role==='物业管家');tbody.innerHTML=staffList.map(s=>{var m=staffMetrics(s.name),st=s.status==='on'?'在岗待命':s.status==='busy'?'正在处理':'请假',dot=s.status==='on'?'on':s.status==='busy'?'busy':'off';return `<tr style="cursor:pointer" onclick="openStaffProfile('${s.id}')"><td>${avatar(s.name,staffColor(s.name))}${esc(s.name)}</td><td>${esc(s.role)}</td><td>${esc(s.skill)}</td><td class="mono">${esc(s.phone)}</td><td><span class="staff-status"><span class="status-dot ${dot}"></span>${st}</span></td><td><b>${m.done.length}</b> / 共${m.all.length}</td><td><button class="btn sm ghost" onclick="event.stopPropagation();openStaffModal('${s.id}')">编辑</button> <button class="btn sm danger" onclick="event.stopPropagation();deleteStaff('${s.id}')">删除</button></td></tr>`}).join('');}
 
 function openStaffProfile(id){
   var s=state.staff.find(x=>x.id===id);if(!s)return;
@@ -1022,6 +1022,39 @@ function loadReminderInterval(){
   }).catch(()=>{});
   // 加载待审核注册
   loadPendingRegistrations();
+  // 渲染主管概览
+  renderAdminProfile();
+}
+
+function renderAdminProfile() {
+  var el = $('#admin-profile-content');
+  if (!el) return;
+  var ts = state.tickets;
+  var totalTickets = ts.length;
+  var doneTickets = ts.filter(t => t.status === 'done').length;
+  var activeTickets = ts.filter(t => t.status === 'doing' || t.status === 'confirm').length;
+  var waitTickets = ts.filter(t => t.status === 'wait').length;
+  var communities = state.communities;
+  var workers = state.staff.filter(s => s.role === '维修工');
+  var keepers = state.staff.filter(s => s.role === '物业管家');
+  var onDuty = state.staff.filter(s => (s.role === '维修工' || s.role === '物业管家') && s.status === 'on').length;
+  var busyCount = state.staff.filter(s => (s.role === '维修工' || s.role === '物业管家') && s.status === 'busy').length;
+  var offCount = state.staff.filter(s => (s.role === '维修工' || s.role === '物业管家') && s.status === 'off').length;
+
+  var user = JSON.parse(localStorage.getItem('login_user') || '{}');
+  el.innerHTML = `
+    <div class="elements">
+      <div class="elem"><div class="k">账号</div><div class="v">${esc(user.name || '主管')} · ${esc(user.phone || '')}</div></div>
+      <div class="elem"><div class="k">管理小区</div><div class="v">${communities.length} 个</div></div>
+      <div class="elem"><div class="k">管理人员</div><div class="v">维修工 ${workers.length} · 管家 ${keepers.length}</div></div>
+      <div class="elem"><div class="k">人员状态</div><div class="v"><span style="color:var(--success)">待命 ${onDuty}</span> · <span style="color:var(--warning)">处理中 ${busyCount}</span> · <span style="color:var(--muted)">请假 ${offCount}</span></div></div>
+      <div class="elem"><div class="k">总工单数</div><div class="v">${totalTickets} 张</div></div>
+      <div class="elem"><div class="k">待派单</div><div class="v" style="color:var(--warning)">${waitTickets} 张</div></div>
+      <div class="elem"><div class="k">处理中</div><div class="v">${activeTickets} 张</div></div>
+      <div class="elem"><div class="k">已完成</div><div class="v" style="color:var(--success)">${doneTickets} 张</div></div>
+    </div>
+    <div style="margin-top:12px;font-size:12px;color:var(--text-3)">小区列表：${communities.map(c => esc(c.name)).join('、')}</div>
+  `;
 }
 
 function loadPendingRegistrations() {
