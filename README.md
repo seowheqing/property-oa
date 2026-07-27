@@ -1,4 +1,4 @@
-# 智慧物业 OA · 工单协同管理系统
+# 工单系统
 
 > AI 驱动的物业工单全生命周期管理系统
 
@@ -110,6 +110,8 @@ node seed-test.js
 | POST | `/api/tickets/:id/photos` | 上传工单照片（multipart文件） |
 | GET | `/api/tickets/:id/photos` | 获取工单照片列表 |
 | POST | `/api/jzm/trigger-event` | 触发秒懂流程事件 |
+| POST | `/api/staff/status` | 师傅更新自己的状态 |
+| GET | `/api/staff/status` | 获取所有人员状态 |
 
 ### 创建工单示例
 
