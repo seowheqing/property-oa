@@ -825,7 +825,7 @@ function openDrawer(id) {
 function buildActions(t) {
   var repair=t.type==='repair', keeper=!repair, mine=repair&&currentRole.startsWith('worker_')&&t.worker===roleWorkerName();
   var noteBtn = `<button class="btn sm ghost" onclick="addTicketNote('${t.id}')">📝 备注</button>`;
-  var urgeBtn = isLead(t) ? `<button class="btn sm" style="background:var(--warning);color:#fff" onclick="urgeTicket('${t.id}')">⚡ 催办</button>` : '';
+  var urgeBtn = (isLead(t) && t.status === 'pending') ? `<button class="btn sm" style="background:var(--warning);color:#fff" onclick="urgeTicket('${t.id}')">⚡ 催办</button>` : '';
 
   if(t.status==='wait'){
     if(!isLead(t)) return hint(`仅${repair?'工程部':'物业'}主管可指派。`);
@@ -914,6 +914,11 @@ function afterAction(id,msg){toast(msg);enhanceState();renderAll();renderDashboa
 /* ============================================================
    搁置 / 恢复 / 备注 / 催办
    ============================================================ */
+function syncMetadata(t) {
+  var meta = JSON.stringify({ notes: t.notes || [], urged: t.urged || [], suspendReason: t.suspendReason || '', suspendEstimate: t.suspendEstimate || '', steps: t.steps || [] });
+  apiPatch(t.id, { metadata: meta });
+}
+
 function suspendTicket(id) {
   var t = state.tickets.find(x => x.id === id);
   if (!t || t.status !== 'doing') { toast('仅处理中的工单可搁置'); return; }
@@ -929,6 +934,7 @@ function suspendTicket(id) {
   pushStep(t, '搁置：' + reason + (t.suspendEstimate ? '（预计' + t.suspendEstimate + '恢复）' : ''), roleObj().name);
   save();
   apiPatch(t.id, { status: 'pending' });
+  syncMetadata(t);
   afterAction(id, '工单已搁置');
 }
 
@@ -942,6 +948,7 @@ function resumeTicket(id) {
   pushStep(t, '恢复处理', roleObj().name);
   save();
   apiPatch(t.id, { status: 'doing' });
+  syncMetadata(t);
   afterAction(id, '工单已恢复处理');
 }
 
@@ -954,17 +961,19 @@ function addTicketNote(id) {
   t.notes.push({ text: note.trim(), who: roleObj().name, time: new Date().toISOString() });
   pushStep(t, '备注：' + note.trim(), roleObj().name);
   save();
+  syncMetadata(t);
   afterAction(id, '备注已添加');
 }
 
 function urgeTicket(id) {
   var t = state.tickets.find(x => x.id === id);
   if (!t) { toast('工单不存在'); return; }
-  if (t.status === 'done' || t.status === 'wait') { toast('该状态无法催办'); return; }
+  if (t.status !== 'pending') { toast('仅搁置中的工单可催办'); return; }
   t.urged = t.urged || [];
   t.urged.push({ who: roleObj().name, time: new Date().toISOString() });
   pushStep(t, '⚡ 催办', roleObj().name);
   save();
+  syncMetadata(t);
   toast('已催办「' + t.id + '」，处理人将收到提醒');
   openDrawer(id);
 }

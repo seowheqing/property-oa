@@ -218,6 +218,9 @@ async function initDB() {
   });
   db.run(`CREATE INDEX IF NOT EXISTS idx_tickets_recurrence ON tickets (community_id, repeat_key, created)`);
 
+  // 添加 metadata JSON 列（存储 notes/urged/suspendReason 等扩展数据）
+  try { db.run(`ALTER TABLE tickets ADD COLUMN metadata TEXT DEFAULT '{}'`); } catch(e) { /* 已存在 */ }
+
   // 确保至少有一个默认小区
   const defaultCommunity = queryOne("SELECT id FROM communities WHERE id = 'default'");
   if (!defaultCommunity) {
@@ -259,6 +262,8 @@ function queryOne(sql, params) {
 }
 
 function rowToTicket(row) {
+  var meta = {};
+  try { meta = JSON.parse(row.metadata || '{}'); } catch(e) {}
   return {
     id: row.id,
     type: row.type,
@@ -279,7 +284,12 @@ function rowToTicket(row) {
     repeatCount: Number(row.repeat_count) || 1,
     isRecurring: Boolean(Number(row.is_recurring)),
     recurrenceNote: row.recurrence_note || '',
-    feedbackCount: Number(row.feedback_count) || 1
+    feedbackCount: Number(row.feedback_count) || 1,
+    notes: meta.notes || [],
+    urged: meta.urged || [],
+    suspendReason: meta.suspendReason || '',
+    suspendEstimate: meta.suspendEstimate || '',
+    steps: meta.steps || []
   };
 }
 
@@ -701,7 +711,7 @@ app.post('/api/tickets', (req, res) => {
 // PATCH /api/tickets/:id — 更新工单
 app.patch('/api/tickets/:id', async (req, res) => {
   const updates = req.body;
-  const allowed = { status: 'status', worker: 'worker', priority: 'priority', finished: 'finished', reject_reason: 'reject_reason', rejectReason: 'reject_reason', estimated_hours: 'estimated_hours', cat: 'cat', loc: 'loc', desc: 'desc', message: 'message', sessionId: 'session_id', community_id: 'community_id' };
+  const allowed = { status: 'status', worker: 'worker', priority: 'priority', finished: 'finished', reject_reason: 'reject_reason', rejectReason: 'reject_reason', estimated_hours: 'estimated_hours', cat: 'cat', loc: 'loc', desc: 'desc', message: 'message', sessionId: 'session_id', community_id: 'community_id', metadata: 'metadata' };
   const sets = [];
   const values = [];
 
