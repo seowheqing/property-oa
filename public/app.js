@@ -994,30 +994,42 @@ function renderAdminProfile() {
   var el = $('#admin-profile-content');
   if (!el) return;
   var ts = state.tickets;
-  var totalTickets = ts.length;
-  var doneTickets = ts.filter(t => t.status === 'done').length;
-  var activeTickets = ts.filter(t => t.status === 'doing' || t.status === 'confirm').length;
-  var waitTickets = ts.filter(t => t.status === 'wait').length;
-  var communities = state.communities;
-  var workers = state.staff.filter(s => s.role === '维修工');
-  var keepers = state.staff.filter(s => s.role === '物业管家');
+  var waitTickets = ts.filter(t => t.status === 'wait');
   var onDuty = state.staff.filter(s => (s.role === '维修工' || s.role === '物业管家') && s.status === 'on').length;
   var busyCount = state.staff.filter(s => (s.role === '维修工' || s.role === '物业管家') && s.status === 'busy').length;
   var offCount = state.staff.filter(s => (s.role === '维修工' || s.role === '物业管家') && s.status === 'off').length;
+  var totalStaff = onDuty + busyCount + offCount;
 
-  var user = JSON.parse(localStorage.getItem('login_user') || '{}');
+  // 超时工单（超过SLA阈值的未完成工单）
+  var now = Date.now();
+  var overdueCount = ts.filter(t => {
+    if (t.status === 'done') return false;
+    var h = (now - new Date(t.created).getTime()) / 3600000;
+    var sla = t.priority === 'urgent' ? 2 : t.priority === 'high' ? 8 : t.priority === 'normal' ? 24 : 48;
+    return h > sla;
+  }).length;
+
   el.innerHTML = `
-    <div class="elements">
-      <div class="elem"><div class="k">账号</div><div class="v">${esc(user.name || '主管')} · ${esc(user.phone || '')}</div></div>
-      <div class="elem"><div class="k">管理小区</div><div class="v">${communities.length} 个</div></div>
-      <div class="elem"><div class="k">管理人员</div><div class="v">维修工 ${workers.length} · 管家 ${keepers.length}</div></div>
-      <div class="elem"><div class="k">人员状态</div><div class="v"><span style="color:var(--success)">待命 ${onDuty}</span> · <span style="color:var(--warning)">处理中 ${busyCount}</span> · <span style="color:var(--muted)">请假 ${offCount}</span></div></div>
-      <div class="elem"><div class="k">总工单数</div><div class="v">${totalTickets} 张</div></div>
-      <div class="elem"><div class="k">待派单</div><div class="v" style="color:var(--warning)">${waitTickets} 张</div></div>
-      <div class="elem"><div class="k">处理中</div><div class="v">${activeTickets} 张</div></div>
-      <div class="elem"><div class="k">已完成</div><div class="v" style="color:var(--success)">${doneTickets} 张</div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+      <div class="elem" style="text-align:center;${waitTickets.length ? 'border-color:var(--warning)' : ''}">
+        <div class="k">🔔 待派单</div>
+        <div class="v" style="font-size:20px;${waitTickets.length ? 'color:var(--warning)' : ''}">${waitTickets.length}</div>
+      </div>
+      <div class="elem" style="text-align:center;${overdueCount ? 'border-color:var(--danger)' : ''}">
+        <div class="k">⚠️ 超时工单</div>
+        <div class="v" style="font-size:20px;${overdueCount ? 'color:var(--danger)' : ''}">${overdueCount}</div>
+      </div>
+      <div class="elem" style="text-align:center">
+        <div class="k">👷 人员在线</div>
+        <div class="v" style="font-size:20px"><span style="color:var(--success)">${onDuty}</span><span style="color:var(--muted);font-size:13px"> / ${totalStaff}</span></div>
+      </div>
+      <div class="elem" style="text-align:center">
+        <div class="k">🏘️ 管理小区</div>
+        <div class="v" style="font-size:20px">${state.communities.length}</div>
+      </div>
     </div>
-    <div style="margin-top:12px;font-size:12px;color:var(--text-3)">小区列表：${communities.map(c => esc(c.name)).join('、')}</div>
+    ${waitTickets.length ? '<div style="margin-top:10px;font-size:12px;color:var(--warning)">⏰ ' + waitTickets.length + ' 张工单等待派单，请尽快处理</div>' : ''}
+    ${overdueCount ? '<div style="margin-top:4px;font-size:12px;color:var(--danger)">⚠️ ' + overdueCount + ' 张工单已超出SLA时限</div>' : ''}
   `;
 }
 
