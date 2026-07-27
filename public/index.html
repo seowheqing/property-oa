@@ -360,6 +360,14 @@
         <select id="f-status"><option value="on">在岗待命</option><option value="busy">正在处理</option><option value="off">请假</option></select>
       </div>
       <div class="form-row"><label>已处理工单数</label><input id="f-done" type="number" value="0"></div>
+      <div class="form-row"><label>值班时间</label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input id="f-duty-start" type="time" value="08:00" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+          <span>至</span>
+          <input id="f-duty-end" type="time" value="18:00" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+        </div>
+        <small style="color:var(--text-3);font-size:11px;margin-top:4px;display:block">设置该人员的每日值班时段，超出时段不会被派单</small>
+      </div>
       <div class="modal-foot">
         <button class="btn gray" onclick="closeStaffModal()">取消</button>
         <button class="btn" onclick="saveStaff()">保存</button>

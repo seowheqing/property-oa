@@ -416,7 +416,7 @@ window.addEventListener('resize', () => Object.values(charts).forEach(c => c.res
 let editingStaffId = null;
 function openStaffModal(id) {
   editingStaffId = id || null;
-  const s = id ? state.staff.find(x => x.id === id) : { name: '', role: '维修工', skill: '', phone: '', status: 'on', done: 0 };
+  const s = id ? state.staff.find(x => x.id === id) : { name: '', role: '维修工', skill: '', phone: '', status: 'on', done: 0, dutyStart: '08:00', dutyEnd: '18:00' };
   $('#modal-title').textContent = id ? '编辑人员' : '新增人员';
   $('#f-name').value = s.name;
   $('#f-role').value = s.role;
@@ -426,6 +426,8 @@ function openStaffModal(id) {
   $('#f-phone').value = s.phone;
   $('#f-status').value = s.status;
   $('#f-done').value = s.done;
+  $('#f-duty-start').value = s.dutyStart || '08:00';
+  $('#f-duty-end').value = s.dutyEnd || '18:00';
   $('#staffModal').classList.add('open');
 }
 function closeStaffModal() { $('#staffModal').classList.remove('open'); }
@@ -446,6 +448,8 @@ function saveStaff() {
     phone: phone || '—',
     status: $('#f-status').value,
     done: parseInt($('#f-done').value) || 0,
+    dutyStart: $('#f-duty-start').value || '08:00',
+    dutyEnd: $('#f-duty-end').value || '18:00',
   };
 
   // 状态校验：编辑已有人员时检查工单状态
@@ -710,7 +714,20 @@ function ageLabel(t) {
 }
 function ticketSla(t) { return t.priority === 'urgent' ? 2 : (t.priority === 'high' ? 8 : (t.priority === 'normal' ? 24 : 48)); }
 function isOnTime(t) { var h = durHours(t.created, t.finished); return h != null && h <= ticketSla(t); }
-function activeStaff(role) { return state.staff.filter(s => s.role === role && s.status === 'on'); }
+function activeStaff(role) {
+  var now = new Date();
+  var currentHM = now.getHours() * 60 + now.getMinutes();
+  return state.staff.filter(s => {
+    if (s.role !== role || s.status !== 'on') return false;
+    // 检查值班时间
+    var start = parseHM(s.dutyStart || '00:00');
+    var end = parseHM(s.dutyEnd || '23:59');
+    if (start <= end) return currentHM >= start && currentHM <= end;
+    // 跨午夜（如 22:00 ~ 06:00）
+    return currentHM >= start || currentHM <= end;
+  });
+}
+function parseHM(hm) { var p = (hm || '08:00').split(':'); return parseInt(p[0]) * 60 + parseInt(p[1] || 0); }
 
 function enhanceState() {
   state.tickets.forEach(t => {
@@ -813,7 +830,7 @@ function buildActions(t) {
   var repair=t.type==='repair', keeper=!repair, mine=repair&&currentRole.startsWith('worker_')&&t.worker===roleWorkerName();
   if(t.status==='wait'){
     if(!isLead(t)) return hint(`仅${repair?'工程部':'物业'}主管可指派。`);
-    var people=activeStaff(repair?'维修工':'物业管家'); if(!people.length)return hint('暂无可派单人员（全部正在处理或请假中）。');
+    var people=activeStaff(repair?'维修工':'物业管家'); if(!people.length)return hint('暂无可派单人员（全部正在处理、请假或不在值班时段）。');
     var defHrs = CAT_DEFAULT_HOURS[t.cat] || 2;
     var timeOpts = [0.5,1,1.5,2,2.5,3,4,5,6,8].map(h => `<option value="${h}"${h===defHrs?' selected':''}>${h}小时</option>`).join('');
     return `<select id="assignWorker">${people.map(s=>`<option value="${esc(s.name)}">${esc(s.name)} · ${esc(s.skill)}</option>`).join('')}</select><select id="assignDuration" title="预计处理时间">${timeOpts}</select><button class="btn" onclick="assignTicket('${t.id}')">确认指派</button>`;
@@ -1248,7 +1265,9 @@ function renderTimelineDay(people, blocks, day, hStart, hEnd) {
     }).join('');
 
     var avgH = workerAvgHours(p);
-    return `<div class="vtl-col"><div class="vtl-col-head"><b>${esc(p)}</b><br><small>${avgH!=null?avgH.toFixed(1)+'h/单':'—'}</small></div><div class="vtl-col-track">${items}</div></div>`;
+    var staffObj = state.staff.find(function(s) { return s.name === p; });
+    var dutyLabel = staffObj ? (staffObj.dutyStart || '08:00') + '~' + (staffObj.dutyEnd || '18:00') : '';
+    return `<div class="vtl-col"><div class="vtl-col-head"><b>${esc(p)}</b><br><small>${dutyLabel}</small></div><div class="vtl-col-track">${items}</div></div>`;
   }).join('');
 
   return `<div class="vtl-chart"><div class="vtl-time-col"><div class="vtl-col-head-placeholder"></div><div class="vtl-time-labels">${timeLabels}</div></div>${columns}</div>`;
