@@ -1126,7 +1126,7 @@ function renderTimelineDay(people, blocks, day, hStart, hEnd) {
   // 竖版布局：X轴=师傅列，Y轴=时间从上到下
   // 左侧时间刻度列
   var timeLabels = '';
-  for (var h = hStart; h <= hEnd; h++) {
+  for (var h = hStart; h < hEnd; h++) {
     var pct = ((h - hStart) / totalH * 100).toFixed(2);
     timeLabels += `<div class="vtl-hour" style="top:${pct}%">${h}:00</div>`;
   }
