@@ -1048,7 +1048,7 @@ function renderAll(){['repair','complaint','help'].forEach(renderTickets);render
 
 function updateNavBadges() {
   var counts = { repair: 0, complaint: 0, help: 0 };
-  state.tickets.forEach(function(t) { if (t.status !== 'done' && counts[t.type] !== undefined) counts[t.type]++; });
+  state.tickets.forEach(function(t) { if (t.status === 'wait' && counts[t.type] !== undefined) counts[t.type]++; });
   $$('.nav button').forEach(function(btn) {
     var page = btn.dataset.page;
     if (counts[page] !== undefined) {
