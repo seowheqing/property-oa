@@ -1,4 +1,4 @@
-# 工单系统
+# 智慧物业 OA · 工单协同管理系统
 
 > AI 驱动的物业工单全生命周期管理系统
 
@@ -15,6 +15,7 @@
     ↓ POST /api/tickets
 ┌─────────────────────────────────────────────┐
 │  Node.js + Express + SQLite                  │
+│  JWT鉴权 · bcrypt · 模块化路由               │
 │  工单管理 · 派单 · 完结通知 · 定时提醒        │
 └─────────────────────────────────────────────┘
     ↑ 管理网页                ↓ 触发事件
@@ -23,137 +24,121 @@
 
 ---
 
-## 核心功能
-
-### 自动化流程
-- 居民群消息 → 秒懂 AI 识别 → 自动创建工单
-- 工单完成 → 自动推送完结通知到群
-- 定时推送待派单提醒到预警群（间隔可配置）
-- 工单号自动递增生成（WX0001, WX0002...）
-
-### 运营看板（仅主管可见）
-- KPI 卡片：总工单、报修、投诉、帮助/其他、紧急待处理、平均时长、按时完成率
-- 近 30 天工单趋势（报修/投诉/帮助折线图）
-- 各师傅处理量 & 平均处理时长
-- 工单类型分布（三大类饼图）
-- 工单状态分布
-- 事件频率排行
-- 师傅绩效表（点击查看详细档案）
-
-### 工单管理
-- **报修**：水暖/电路/电器/门窗/公共设施
-- **投诉**：突发事件/物业服务/便民服务/其他
-- **帮助**：生活帮助/咨询建议/邻里协调/其他
-- **已完成**：独立页面归档
-- 四级优先级：紧急(2h) / 高(8h) / 普通(24h) / 低(48h)
-- 默认按最新创建排序
-- 重复反馈识别以“同小区 + 规范化地址 + 工单大类 + 具体事件类别”为基础，并用问题关键词区分水压低、漏水、停水等不同故障：15 分钟内未完成的同类反馈合并至原工单并累计反馈人数
-- 近 30 天已完成的同类问题再次发生时创建新工单，关联最近历史工单、标记“复发问题”并自动提升一级优先级（紧急级别保持不变）
-- 工单列表、已完成列表和详情抽屉会显示复发次数、多人反馈次数及历史工单入口
-
-### 智能派单
-- 日程冲突自动检测（弹窗提醒冲突时段）
-- 师傅日程时间轴（日历选日期，单日视图，处理中工单实时拉长）—— **跨小区打通**，显示师傅在所有小区的工单
-- 预计处理时长（基于历史平均或类别默认值）
-- **值班时间**：主管可为每位师傅设置每日值班时段（如 08:00~18:00），不在值班时段的师傅不会出现在派单列表中；日程表列头显示值班时段，非值班时段灰色标记
-
-### 登录系统
-- 手机号 + 密码登录
-- 滑动拼图验证码（防机器人）
-- 登录后自动匹配角色权限（主管/维修工/管家）
-- 主管在管理平台添加用户时设置手机号和密码
-- **邀请码自助注册**：每个小区可生成6位邀请码，师傅在登录页点"注册"输入邀请码提交申请，主管审核通过后自动创建账号并授权小区；支持注册为主管/维修工/管家三种角色
-- **密码重置**：登录页点"忘记密码？"输入手机号和新密码即可重置
-
-### 角色体系
-| 角色 | 能力 | 可见范围 |
-|------|------|---------|
-| 主管 | 派单、确认完成、驳回 | 全部页面和数据 |
-| 维修师傅 | 提交完成、上传照片、退回工单 | 仅自己的工单和日程 |
-| 物业管家 | 处理投诉/帮助、退回工单 | 仅自己的工单和日程 |
-
-### 师傅状态管理
-- 状态自动推导：有活跃工单 → 正在处理，无工单 → 在岗待命，手动请假不被覆盖
-- 师傅可在"我的"页面手动切换状态（带校验：有工单不能切在岗/请假）
-- 主管在管理平台实时看到所有人员状态
-
-### 人员档案
-- 点击师傅行查看详细档案（绩效评分/SLA明细/擅长类型/工单历史）
-- 绩效评分 = 按时完成率×70% + 速度加分(30分)
-
-### 多小区管理
-- 主管可新建/编辑小区，设置人员访问权限
-- 师傅只能看到被授权的小区
-- 工单数据按小区隔离
-
----
-
-## 本地运行
+## 快速开始
 
 ```bash
 cd server
 npm install
-node index.js
+node index-new.js
 # 浏览器打开 http://localhost:3001
 ```
 
-插入测试数据：
+首次迁移旧数据库密码（如有）：
 ```bash
-node seed-test.js
+node migrate-passwords.js
+```
+
+---
+
+## 核心功能
+
+### 工单管理
+- 三类工单：报修（水暖/电路/电器/门窗/公共设施）、投诉、帮助/其他
+- 四级优先级：紧急(2h) / 高(8h) / 普通(24h) / 低(48h)
+- 工单状态：待派单 → 处理中 → 搁置中 → 待确认 → 已完成
+- **搁置功能**：填原因 + 预计恢复日期，师傅释放可接新单
+- **工单备注**：任何角色随时添加备注
+- **工单催办**：主管对搁置工单催办，列表显示 ⚡ 标记
+- 重复反馈自动合并 / 复发问题自动提升优先级
+
+### 智能派单
+- 仅向"在岗待命 + 值班时段内"的师傅派单
+- 日程冲突自动检测
+- 师傅状态自动推导（有工单 → 正在处理，无工单 → 在岗待命）
+- 值班时间管理（主管设置，非值班时段灰色标记）
+
+### 师傅日程（竖版飞书日历风格）
+- X轴 = 师傅，Y轴 = 0:00~23:00
+- 跨小区打通显示所有工单
+- 非值班时段灰色背景
+
+### 多小区管理
+- 主管新建/编辑小区，设置人员访问权限
+- 每个小区独立邀请码
+- 师傅只能看到授权小区
+- 左上角名称随小区切换
+
+### 登录 & 安全
+- 手机号 + 密码登录（bcrypt 加密）
+- JWT token 鉴权（7天有效期）
+- 滑动拼图验证码（本地 canvas，零网络依赖）
+- 登录/注册限流（每IP每分钟5次）
+- 邀请码自助注册 + 主管审核
+- 密码重置
+
+### 角色体系
+| 角色 | 能力 | 可见范围 |
+|------|------|---------|
+| 主管 | 派单、确认、驳回、催办、管理 | 全部 |
+| 维修师傅 | 完成、上传照片、搁置、退回 | 仅自己 |
+| 物业管家 | 处理投诉/帮助、搁置、退回 | 仅自己 |
+
+### 运营看板（仅主管）
+- KPI 卡片 + 趋势图 + 处理量 + 绩效表
+- 待办概览（待派单数、超时工单、人员在线）
+
+---
+
+## 项目结构
+
+```
+server/
+├── index-new.js          # 入口（模块化，默认）
+├── config.js             # 配置
+├── db.js                 # 数据库
+├── middleware/auth.js    # JWT 鉴权
+├── routes/
+│   ├── auth.js           # 登录/注册/用户
+│   ├── tickets.js        # 工单
+│   ├── communities.js    # 小区（admin保护）
+│   ├── staff.js          # 人员状态
+│   └── settings.js       # 通知/SLA/月报
+├── public/
+│   ├── index.html
+│   ├── app.js
+│   ├── styles.css
+│   └── js/
+│       ├── api.js        # 统一请求封装
+│       └── captcha.js    # 本地验证码
+└── migrate-passwords.js  # 密码迁移脚本
 ```
 
 ---
 
 ## API 接口
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/tickets` | 获取全部工单（支持 `community_id` 筛选） |
-| POST | `/api/tickets` | 创建工单（id 可选；自动生成并执行重复/复发识别） |
-| PATCH | `/api/tickets/:id` | 更新工单（完成时自动触发通知） |
-| DELETE | `/api/tickets/:id` | 删除工单 |
-| POST | `/api/notify` | 手动触发完结通知 |
-| GET | `/api/reminder/trigger` | 手动触发待派单提醒 |
-| GET | `/api/settings/reminder` | 获取推送间隔 |
-| POST | `/api/settings/reminder` | 修改推送间隔 |
-| GET | `/api/sla/overdue` | 获取超时工单列表 |
-| GET | `/api/sla/alert` | 触发超时告警推送到预警群 |
-| GET | `/api/report?from=&to=` | 生成工单报告（月报） |
-| POST | `/api/report/ai` | AI 智能分析报告（接秒懂/通义千问） |
-| POST | `/api/tickets/:id/photos` | 上传工单照片（multipart文件） |
-| GET | `/api/tickets/:id/photos` | 获取工单照片列表 |
-| POST | `/api/jzm/trigger-event` | 触发秒懂流程事件 |
-| POST | `/api/staff/status` | 师傅更新自己的状态 |
-| GET | `/api/staff/status` | 获取所有人员状态 |
-| POST | `/api/communities/:id/invite-code` | 生成/获取小区邀请码 |
-| GET | `/api/communities/:id/invite-code` | 查看小区邀请码 |
-| POST | `/api/register` | 师傅自助注册（需邀请码） |
-| GET | `/api/pending-registrations` | 获取待审核注册列表 |
-| POST | `/api/pending-registrations/:id/approve` | 审核通过 |
-| POST | `/api/pending-registrations/:id/reject` | 审核拒绝 |
-
-### 创建工单示例
-
-```json
-POST /api/tickets
-{
-  "type": "repair",
-  "cat": "水暖",
-  "desc": "3号楼停水",
-  "loc": "3号楼-全栋",
-  "priority": "urgent",
-  "message": "3号楼停水了",
-  "sessionId": "可选，用于完结回调",
-  "community_id": "default"
-}
-```
-
-创建接口的 `action` 字段表示识别结果：
-- `created`：普通新工单。
-- `merged`：15 分钟内重复反馈，未创建新工单；`mergedInto` 是被合并的原工单号，`record.feedbackCount` 为累计反馈人数。
-- `created_recurring`：近 30 天已完成问题复发；`record.repeatOf` 指向最近历史工单，`record.repeatCount` 为窗口内发生次数。
-
-重复与复发字段由服务端计算，调用方不应自行传入或修改。匹配始终包含 `community_id`，不会跨小区关联。
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| POST | /api/login | 公开 | 登录（返回JWT） |
+| POST | /api/register | 公开 | 邀请码注册 |
+| POST | /api/reset-password | 公开 | 重置密码 |
+| GET | /api/pending-registrations | 登录 | 待审核列表 |
+| POST | /api/pending-registrations/:id/approve | 登录 | 审核通过 |
+| POST | /api/pending-registrations/:id/reject | 登录 | 审核拒绝 |
+| GET | /api/tickets | 登录 | 工单列表 |
+| POST | /api/tickets | 登录 | 创建工单 |
+| PATCH | /api/tickets/:id | 登录 | 更新工单 |
+| DELETE | /api/tickets/:id | **Admin** | 删除工单 |
+| POST | /api/tickets/:id/photos | 登录 | 上传照片 |
+| GET | /api/communities | 登录 | 小区列表 |
+| POST | /api/communities | **Admin** | 创建小区 |
+| PATCH | /api/communities/:id | **Admin** | 编辑小区 |
+| DELETE | /api/communities/:id | **Admin** | 删除小区 |
+| POST | /api/communities/:id/invite-code | **Admin** | 生成邀请码 |
+| POST | /api/staff/status | 登录 | 更新状态 |
+| GET | /api/staff/status | 登录 | 人员状态 |
+| POST | /api/notify | 登录 | 触发通知 |
+| GET | /api/report | 登录 | 生成月报 |
 
 ---
 
@@ -161,42 +146,29 @@ POST /api/tickets
 
 | 变量 | 说明 |
 |------|------|
-| `PORT` | 服务端口（默认 3001） |
-| `NOTIFY_WEBHOOK` | 通知回调URL |
-| `JZMM_ACCESS_KEY_ID` | 句子秒懂 AccessKeyId |
-| `JZMM_ACCESS_KEY_SECRET` | 句子秒懂 AccessKeySecret |
-| `JZMM_BOT_ID` | 秒懂机器人ID |
-| `JZMM_EVENT_ID` | 秒懂事件ID |
-| `JZMM_SESSION_ID` | 默认会话ID |
+| PORT | 端口（默认 3001） |
+| JWT_SECRET | JWT 签名密钥 |
+| JZMM_ACCESS_KEY_ID | 句子秒懂 AccessKeyId |
+| JZMM_ACCESS_KEY_SECRET | 句子秒懂 AccessKeySecret |
+| JZMM_BOT_ID | 秒懂机器人 ID |
+| JZMM_EVENT_ID | 秒懂事件 ID |
+| JZMM_SESSION_ID | 默认会话 ID |
 
 ---
 
 ## 技术栈
 
-- **前端**：HTML5 + CSS3 + JavaScript ES6 + ECharts 5.x
-- **后端**：Node.js + Express
-- **数据库**：SQLite（sql.js，本地文件 data.db）
+- **后端**：Node.js + Express + SQLite (sql.js) + JWT + bcrypt
+- **前端**：HTML5 + CSS3 + JavaScript + ECharts
 - **AI**：句子秒懂流程引擎
-- **消息通道**：企业微信群 → 句子秒懂 → 系统 API
 - **部署**：Render Web Service
 
 ---
 
-## 文件结构
+## 安全措施
 
-```
-server/
-├── index.js           # Express 后端
-├── package.json       # 依赖
-├── data.db            # SQLite 数据库
-├── seed-test.js       # 测试数据脚本
-├── .env               # 环境变量（不上传）
-├── .gitignore
-├── render.yaml        # Render 部署配置
-└── public/
-    ├── index.html     # 前端页面
-    ├── app.js         # 前端逻辑
-    ├── data.js        # 种子数据配置
-    ├── styles.css     # 样式
-    └── echarts.min.js # 图表库
-```
+- ✅ 密码 bcrypt 哈希（10轮）
+- ✅ JWT token 鉴权
+- ✅ 敏感 API 需 admin 权限
+- ✅ 登录限流（5次/分钟/IP）
+- ✅ 滑动验证码（防机器人）
