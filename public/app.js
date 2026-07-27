@@ -34,7 +34,10 @@ async function load() {
   // 加载小区列表
   if (useApi) {
     try {
-      var cResp = await fetch(API_BASE + '/api/communities');
+      var isLead = currentRole === 'eng_lead';
+      var myName = currentRole.replace(/^worker_|^pm_keeper_/, '');
+      var communityUrl = API_BASE + '/api/communities' + (!isLead && myName ? '?staff_name=' + encodeURIComponent(myName) : '');
+      var cResp = await fetch(communityUrl);
       var cJson = await cResp.json();
       if (cJson.data) state.communities = cJson.data;
     } catch(e) { console.warn('小区列表加载失败', e); state.communities = [{ id: 'default', name: '默认小区', address: '' }]; }
@@ -206,6 +209,8 @@ function applyRoleView() {
     if (b.dataset.page === 'admin') b.style.display = (isWorker || isKeeper) ? 'none' : '';
     if (b.dataset.page === 'dashboard') b.style.display = (isWorker || isKeeper) ? 'none' : '';
   });
+  // 重新加载小区列表（按角色权限过滤）
+  reloadCommunities();
   // 重新初始化日程选择器（根据角色限制可见范围）
   initSchedule();
   // 更新日程页面标题和导航按钮文字
@@ -223,6 +228,19 @@ function applyRoleView() {
   else if (isKeeper) { navTo('complaint'); }
   renderAll();
   if (openTicketId) openDrawer(openTicketId);
+}
+
+async function reloadCommunities() {
+  if (!useApi) return;
+  try {
+    var isLead = currentRole === 'eng_lead';
+    var myName = currentRole.replace(/^worker_|^pm_keeper_/, '');
+    var url = API_BASE + '/api/communities' + (!isLead && myName ? '?staff_name=' + encodeURIComponent(myName) : '');
+    var resp = await fetch(url);
+    var json = await resp.json();
+    if (json.data) state.communities = json.data;
+  } catch(e) { /* keep existing */ }
+  initCommunitySelect();
 }
 /* ============================================================
    工单列表渲染（旧版已移除，使用下方增强版）
@@ -425,9 +443,11 @@ function initCommunitySelect() {
     localStorage.setItem(LS_COMMUNITY, currentCommunity);
     var name = state.communities.find(function(c) { return c.id === currentCommunity; });
     toast('已切换到：' + (name ? name.name : currentCommunity));
-    // 重新加载该小区工单
     reloadTickets();
   };
+  // 非主管隐藏小区管理按钮
+  var mgBtn = document.querySelector('.community-switch .btn');
+  if (mgBtn) mgBtn.style.display = (currentRole === 'eng_lead') ? '' : 'none';
 }
 
 async function reloadTickets() {
@@ -448,6 +468,13 @@ async function reloadTickets() {
 
 function openCommunityModal() {
   renderCommunityList();
+  // 渲染新增小区的人员选择
+  var staffEl = $('#f-community-staff');
+  if (staffEl) {
+    staffEl.innerHTML = state.staff.map(function(s) {
+      return '<label class="skill-tag"><input type="checkbox" value="' + esc(s.name) + '"><span>' + esc(s.name) + ' · ' + esc(s.role) + '</span></label>';
+    }).join('');
+  }
   $('#communityModal').classList.add('open');
 }
 function closeCommunityModal() {
@@ -458,22 +485,71 @@ function renderCommunityList() {
   if (!state.communities.length) { el.innerHTML = '<div style="color:#aaa">暂无小区</div>'; return; }
   el.innerHTML = state.communities.map(function(c) {
     var isDefault = c.id === 'default';
-    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border)">' +
-      '<span style="flex:1;font-weight:500">' + esc(c.name) + '</span>' +
-      '<span style="color:var(--text-2);font-size:12px">' + esc(c.address || '') + '</span>' +
+    var staffNames = (c.allowedStaff || []).join('、') || '全部人员';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border);flex-wrap:wrap">' +
+      '<span style="font-weight:500;min-width:80px">' + esc(c.name) + '</span>' +
+      '<span style="color:var(--text-3);font-size:11px;flex:1">' + esc(c.address || '') + '</span>' +
+      '<span style="font-size:11px;color:var(--primary)">👷 ' + esc(staffNames) + '</span>' +
+      '<button class="btn sm ghost" onclick="editCommunityPermissions(\'' + c.id + '\')">编辑权限</button>' +
       (isDefault ? '' : '<button class="btn sm danger" onclick="deleteCommunity(\'' + c.id + '\')">删除</button>') +
       '</div>';
   }).join('');
+}
+
+function editCommunityPermissions(communityId) {
+  var c = state.communities.find(function(x) { return x.id === communityId; });
+  if (!c) return;
+  var allowed = c.allowedStaff || [];
+  var staffHtml = state.staff.map(function(s) {
+    var checked = allowed.includes(s.name) ? ' checked' : '';
+    return '<label class="skill-tag"><input type="checkbox" value="' + esc(s.name) + '"' + checked + '><span>' + esc(s.name) + ' · ' + esc(s.role) + '</span></label>';
+  }).join('');
+  var modal = document.createElement('div');
+  modal.className = 'modal-mask open';
+  modal.id = 'permModal';
+  modal.innerHTML = '<div class="modal" style="max-width:480px"><h3>编辑「' + esc(c.name) + '」的人员权限</h3>' +
+    '<p style="font-size:12px;color:var(--text-2);margin-bottom:12px">勾选有权限进入该小区的人员（不勾选 = 仅主管可见）</p>' +
+    '<div class="skill-tags" id="perm-staff-tags" style="margin-bottom:16px">' + staffHtml + '</div>' +
+    '<div class="modal-foot"><button class="btn gray" onclick="closePermModal()">取消</button><button class="btn" onclick="savePermissions(\'' + communityId + '\')">保存</button></div></div>';
+  document.body.appendChild(modal);
+}
+
+function closePermModal() {
+  var m = $('#permModal');
+  if (m) document.body.removeChild(m);
+}
+
+async function savePermissions(communityId) {
+  var checks = $$('#perm-staff-tags input[type=checkbox]:checked');
+  var allowedStaff = checks.map(function(cb) { return cb.value; });
+  try {
+    var resp = await fetch(API_BASE + '/api/communities/' + communityId, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ allowedStaff: allowedStaff })
+    });
+    var json = await resp.json();
+    if (json.success) {
+      var c = state.communities.find(function(x) { return x.id === communityId; });
+      if (c) c.allowedStaff = allowedStaff;
+      renderCommunityList();
+      toast('权限已更新');
+    } else {
+      toast('保存失败: ' + (json.error || ''));
+    }
+  } catch(e) { toast('网络错误'); }
+  closePermModal();
 }
 async function addCommunity() {
   var name = $('#f-community-name').value.trim();
   if (!name) { toast('请填写小区名称'); return; }
   var addr = $('#f-community-addr').value.trim();
+  var allowedStaff = $$('#f-community-staff input[type=checkbox]:checked').map(function(cb) { return cb.value; });
   try {
     var resp = await fetch(API_BASE + '/api/communities', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, address: addr })
+      body: JSON.stringify({ name: name, address: addr, allowedStaff: allowedStaff })
     });
     var json = await resp.json();
     if (json.success) {
@@ -482,6 +558,7 @@ async function addCommunity() {
       renderCommunityList();
       $('#f-community-name').value = '';
       $('#f-community-addr').value = '';
+      $$('#f-community-staff input[type=checkbox]').forEach(function(cb) { cb.checked = false; });
       toast('小区「' + name + '」已添加');
     } else {
       toast('添加失败: ' + (json.error || ''));

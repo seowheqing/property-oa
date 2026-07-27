@@ -157,6 +157,15 @@ async function initDB() {
     )
   `);
 
+  // 小区-人员权限表
+  db.run(`
+    CREATE TABLE IF NOT EXISTS community_permissions (
+      community_id TEXT NOT NULL,
+      staff_name TEXT NOT NULL,
+      PRIMARY KEY (community_id, staff_name)
+    )
+  `);
+
   // 兼容旧数据库：如果 session_id 列不存在则添加
   try {
     db.run(`ALTER TABLE tickets ADD COLUMN session_id TEXT DEFAULT ''`);
@@ -346,22 +355,45 @@ app.post('/api/users', (req, res) => {
 });
 
 // ============ 小区管理接口 ============
-// GET /api/communities — 获取所有小区
+// GET /api/communities — 获取所有小区（支持 ?staff_name= 按人员筛选）
 app.get('/api/communities', (req, res) => {
-  const communities = queryAll('SELECT * FROM communities ORDER BY created ASC');
+  const staffName = req.query.staff_name;
+  let communities;
+  if (staffName) {
+    // 非主管：只返回有权限的小区 + 默认小区
+    communities = queryAll(
+      `SELECT DISTINCT c.* FROM communities c
+       LEFT JOIN community_permissions cp ON c.id = cp.community_id
+       WHERE c.id = 'default' OR cp.staff_name = ?
+       ORDER BY c.created ASC`, [staffName]
+    );
+  } else {
+    communities = queryAll('SELECT * FROM communities ORDER BY created ASC');
+  }
+  // 附带每个小区的授权人员列表
+  communities.forEach(c => {
+    c.allowedStaff = queryAll('SELECT staff_name FROM community_permissions WHERE community_id = ?', [c.id]).map(r => r.staff_name);
+  });
   res.json({ data: communities });
 });
 
 // POST /api/communities — 创建小区
 app.post('/api/communities', (req, res) => {
-  const { name, address } = req.body;
+  const { name, address, allowedStaff } = req.body;
   if (!name) return res.status(400).json({ error: '小区名称必填' });
   const id = 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const now = new Date().toISOString();
   try {
     db.run('INSERT INTO communities (id, name, address, created) VALUES (?, ?, ?, ?)', [id, name, address || '', now]);
+    // 保存人员权限
+    if (allowedStaff && Array.isArray(allowedStaff)) {
+      allowedStaff.forEach(staffName => {
+        db.run('INSERT OR IGNORE INTO community_permissions (community_id, staff_name) VALUES (?, ?)', [id, staffName]);
+      });
+    }
     saveDB();
-    res.json({ success: true, community: { id, name, address: address || '', created: now } });
+    const community = { id, name, address: address || '', created: now, allowedStaff: allowedStaff || [] };
+    res.json({ success: true, community });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -369,16 +401,25 @@ app.post('/api/communities', (req, res) => {
 
 // PATCH /api/communities/:id — 更新小区
 app.patch('/api/communities/:id', (req, res) => {
-  const { name, address } = req.body;
+  const { name, address, allowedStaff } = req.body;
   const sets = [], values = [];
   if (name !== undefined) { sets.push('name = ?'); values.push(name); }
   if (address !== undefined) { sets.push('address = ?'); values.push(address); }
-  if (!sets.length) return res.status(400).json({ error: '无更新字段' });
-  values.push(req.params.id);
-  db.run(`UPDATE communities SET ${sets.join(', ')} WHERE id = ?`, values);
+  if (sets.length) {
+    values.push(req.params.id);
+    db.run(`UPDATE communities SET ${sets.join(', ')} WHERE id = ?`, values);
+  }
+  // 更新人员权限
+  if (allowedStaff !== undefined && Array.isArray(allowedStaff)) {
+    db.run('DELETE FROM community_permissions WHERE community_id = ?', [req.params.id]);
+    allowedStaff.forEach(staffName => {
+      db.run('INSERT OR IGNORE INTO community_permissions (community_id, staff_name) VALUES (?, ?)', [req.params.id, staffName]);
+    });
+  }
   saveDB();
   const row = queryOne('SELECT * FROM communities WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: '小区不存在' });
+  row.allowedStaff = queryAll('SELECT staff_name FROM community_permissions WHERE community_id = ?', [req.params.id]).map(r => r.staff_name);
   res.json({ success: true, community: row });
 });
 

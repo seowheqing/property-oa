@@ -283,12 +283,13 @@
       <h3>小区管理</h3>
       <div class="form-row">
         <label>现有小区</label>
-        <div id="community-list" style="max-height:200px;overflow-y:auto;margin-bottom:12px"></div>
+        <div id="community-list" style="max-height:240px;overflow-y:auto;margin-bottom:12px"></div>
       </div>
       <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
       <h4 style="margin-bottom:8px">新增小区</h4>
       <div class="form-row"><label>小区名称</label><input id="f-community-name" placeholder="如：阳光花园"></div>
       <div class="form-row"><label>地址（选填）</label><input id="f-community-addr" placeholder="如：XX路XX号"></div>
+      <div class="form-row"><label>授权人员（勾选可进入该小区的师傅/管家）</label><div class="skill-tags" id="f-community-staff"></div></div>
       <div class="modal-foot">
         <button class="btn gray" onclick="closeCommunityModal()">关闭</button>
         <button class="btn" onclick="addCommunity()">新增</button>
