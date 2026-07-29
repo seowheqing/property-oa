@@ -226,6 +226,12 @@ function applyRoleView() {
     statusCard.style.display = (isWorker || isKeeper) ? '' : 'none';
     if (isWorker || isKeeper) renderMyStatus();
   }
+  // 显示个人信息卡片（所有角色）
+  var profileCard = $('#my-profile-card');
+  if (profileCard) {
+    profileCard.style.display = '';
+    renderMyProfile();
+  }
   renderAll();
   if (openTicketId) openDrawer(openTicketId);
 }
@@ -240,6 +246,52 @@ function renderMyStatus() {
   if (labelEl) labelEl.innerHTML = '<span class="staff-status"><span class="status-dot ' + dotCls + '"></span>' + label + '</span>';
   var sel = $('#my-status-select');
   if (sel) sel.value = s.status;
+}
+
+function renderMyProfile() {
+  var el = $('#my-profile-content');
+  if (!el) return;
+  var user = JSON.parse(localStorage.getItem('login_user') || '{}');
+  var myName = user.name || roleObj().name;
+  var s = state.staff.find(function(x) { return x.name === myName; });
+  var isAdmin = currentRole === 'eng_lead';
+
+  // 入职时间（从 staff joinDate 或用默认值）
+  var joinDate = (s && s.joinDate) ? s.joinDate : '2026-01-01';
+  var joinMs = new Date(joinDate).getTime();
+  var now = Date.now();
+  var workDays = Math.floor((now - joinMs) / 86400000);
+  var workMonths = Math.floor(workDays / 30);
+  var workYears = Math.floor(workDays / 365);
+  var seniorityLabel = workYears >= 1 ? workYears + '年' + Math.floor((workDays % 365) / 30) + '个月' : workMonths + '个月';
+
+  // 本月在岗天数（简化：用当月天数 - 请假天数估算，这里用固定逻辑）
+  var thisMonth = new Date();
+  var monthDays = thisMonth.getDate(); // 本月已过天数
+  var attendDays = monthDays; // 默认全勤（后续可从状态记录计算）
+
+  // 处理工单数
+  var myTickets = state.tickets.filter(function(t) { return t.worker === myName; });
+  var doneCount = myTickets.filter(function(t) { return t.status === 'done'; }).length;
+  var activeCount = myTickets.filter(function(t) { return t.status === 'doing' || t.status === 'confirm' || t.status === 'pending'; }).length;
+
+  var roleLabel = isAdmin ? '主管' : (s ? s.role : user.role === 'worker' ? '维修工' : '物业管家');
+  var skillLabel = s ? (s.skill || '—') : '—';
+  var phoneLabel = user.phone || (s ? s.phone : '—');
+
+  el.innerHTML = `
+    <div class="elements">
+      <div class="elem"><div class="k">姓名</div><div class="v">${esc(myName)}</div></div>
+      <div class="elem"><div class="k">角色</div><div class="v">${esc(roleLabel)}</div></div>
+      <div class="elem"><div class="k">电话</div><div class="v">${esc(phoneLabel)}</div></div>
+      <div class="elem"><div class="k">技能</div><div class="v">${esc(skillLabel)}</div></div>
+      <div class="elem"><div class="k">入职时间</div><div class="v">${esc(joinDate)}</div></div>
+      <div class="elem"><div class="k">工龄</div><div class="v">${seniorityLabel}</div></div>
+      <div class="elem"><div class="k">本月出勤</div><div class="v">${attendDays} 天</div></div>
+      <div class="elem"><div class="k">累计完成工单</div><div class="v">${doneCount} 张</div></div>
+      ${!isAdmin ? '<div class="elem"><div class="k">当前处理中</div><div class="v">' + activeCount + ' 张</div></div>' : ''}
+    </div>
+  `;
 }
 
 function updateMyStatus() {
@@ -403,6 +455,7 @@ function openStaffModal(id) {
   $('#f-done').value = s.done;
   $('#f-duty-start').value = s.dutyStart || '08:00';
   $('#f-duty-end').value = s.dutyEnd || '18:00';
+  $('#f-join-date').value = s.joinDate || '';
   $('#staffModal').classList.add('open');
 }
 function closeStaffModal() { $('#staffModal').classList.remove('open'); }
@@ -425,6 +478,7 @@ function saveStaff() {
     done: parseInt($('#f-done').value) || 0,
     dutyStart: $('#f-duty-start').value || '08:00',
     dutyEnd: $('#f-duty-end').value || '18:00',
+    joinDate: $('#f-join-date').value || '',
   };
 
   // 状态校验：编辑已有人员时检查工单状态
@@ -728,9 +782,10 @@ function enhanceState() {
     t.suspendReason = t.suspendReason || '';
     t.suspendEstimate = t.suspendEstimate || '';
   });
-  // 自动推导师傅状态：有处理中工单 → busy(正在处理)，否则保持当前状态
+  // 自动推导师傅状态 + 确保 joinDate
   state.staff.forEach(s => {
-    if (s.status === 'off') return; // 请假状态不自动变更
+    s.joinDate = s.joinDate || '2026-01-01';
+    if (s.status === 'off') return;
     var hasActive = state.tickets.some(t => t.worker === s.name && (t.status === 'doing' || t.status === 'confirm'));
     s.status = hasActive ? 'busy' : 'on';
   });

@@ -235,6 +235,12 @@
       <div class="page-title">师傅日程 · 排班与冲突检测</div>
       <div class="page-sub">查看各维修师傅/管家的工单排布，快速识别日程冲突，辅助派单决策</div>
 
+      <!-- 个人信息卡片（所有角色可见） -->
+      <div class="card" id="my-profile-card" style="display:none;margin-bottom:16px">
+        <h4 style="font-size:14px;margin-bottom:12px">👤 个人信息</h4>
+        <div id="my-profile-content"></div>
+      </div>
+
       <!-- 我的状态卡片（仅非主管可见） -->
       <div class="card" id="my-status-card" style="display:none;margin-bottom:16px">
         <h4 style="font-size:14px;margin-bottom:12px">📋 我的状态</h4>
@@ -377,6 +383,7 @@
         </div>
         <small style="color:var(--text-3);font-size:11px;margin-top:4px;display:block">设置该人员的每日值班时段，超出时段不会被派单</small>
       </div>
+      <div class="form-row"><label>入职日期</label><input id="f-join-date" type="date" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px"></div>
       <div class="modal-foot">
         <button class="btn gray" onclick="closeStaffModal()">取消</button>
         <button class="btn" onclick="saveStaff()">保存</button>
