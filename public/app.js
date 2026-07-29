@@ -743,12 +743,14 @@ function setupEnhancedUI() {
   if (!$('#kpi-help')) kpis.insertAdjacentHTML('beforeend', '<div class="kpi teal"><div class="label">帮助/其他</div><div class="value" id="kpi-help">—</div><div class="trend">生活帮助/咨询/协调/其他</div></div><div class="kpi orange"><div class="label">紧急待处理</div><div class="value" id="kpi-urgent">—</div><div class="trend">按紧急度与等待时间排序</div></div>');
   var grid = dash.querySelector('.chart-grid');
   if (!$('#chart-event-frequency')) grid.insertAdjacentHTML('beforeend', '<div class="chart-card chart-full"><h3>事件发生频率（全部工单）</h3><div class="chart-box" id="chart-event-frequency"></div></div><div class="chart-card performance-card"><h3>师傅 / 管家处理明细与表现</h3><div class="table-wrap"><table class="performance-table"><thead><tr><th>人员</th><th>处理过什么</th><th>总工单</th><th>已完成</th><th>处理中</th><th>平均时长</th><th>按时率</th><th>表现</th></tr></thead><tbody id="tbody-performance"></tbody></table></div></div>');
-  if (!$('#page-help')) $('#page-admin').insertAdjacentHTML('beforebegin', `<section class="page" id="page-help"><div class="page-title">帮助 / 其他工单</div><div class="page-sub">生活帮助、咨询建议、邻里协调及其他事项</div><div class="card"><div class="priority-legend"><b>优先级：</b><span><i class="priority-dot urgent"></i>紧急</span><span><i class="priority-dot high"></i>高</span><span><i class="priority-dot normal"></i>普通</span><span><i class="priority-dot low"></i>低</span><span>默认同级按等待时间从长到短</span></div><div class="toolbar"><select id="filter-status-help"></select><select id="filter-cat-help"></select><select id="filter-priority-help"></select><select id="sort-help"><option value="newest" selected>最新创建</option><option value="oldest">等待最久</option><option value="priority">紧急度优先</option></select><span class="spacer"></span><span class="count" id="count-help"></span></div><div class="table-wrap"><table><thead><tr><th>优先级</th><th>工单号</th><th>位置</th><th>类型</th><th>状态</th><th>负责人</th><th>创建时间</th><th>已等待/处理时长</th></tr></thead><tbody id="tbody-help"></tbody></table></div></div></section>`);
+  if (!$('#page-help')) $('#page-admin').insertAdjacentHTML('beforebegin', `<section class="page" id="page-help"><div class="page-title">帮助 / 其他工单</div><div class="page-sub">生活帮助、咨询建议、邻里协调及其他事项</div><div class="card"><div class="priority-legend"><b>优先级：</b><span><i class="priority-dot urgent"></i>紧急</span><span><i class="priority-dot high"></i>高</span><span><i class="priority-dot normal"></i>普通</span><span><i class="priority-dot low"></i>低</span><span>默认同级按等待时间从长到短</span></div><div class="toolbar"><select id="filter-status-help"></select><select id="filter-cat-help"></select><select id="filter-priority-help"></select><select id="sort-help"><option value="newest" selected>最新创建</option><option value="oldest">等待最久</option><option value="priority">紧急度优先</option></select><span class="spacer"></span><span class="count" id="count-help"></span></div><div class="table-wrap"><table><thead><tr><th>优先级</th><th>工单号</th><th>位置</th><th>状态</th><th>负责人</th><th>创建时间</th><th>已等待/处理时长</th></tr></thead><tbody id="tbody-help"></tbody></table></div></div></section>`);
   ['repair','complaint'].forEach(type => {
     var page = $('#page-' + type), toolbar = page.querySelector('.toolbar');
     if (!$('#filter-priority-' + type)) toolbar.querySelector('.spacer').insertAdjacentHTML('beforebegin', `<select id="filter-priority-${type}"></select><select id="sort-${type}"><option value="newest" selected>最新创建</option><option value="oldest">等待最久</option><option value="priority">紧急度优先</option></select>`);
     if (!page.querySelector('.priority-legend')) page.querySelector('.card').insertAdjacentHTML('afterbegin', '<div class="priority-legend"><b>优先级：</b><span><i class="priority-dot urgent"></i>紧急</span><span><i class="priority-dot high"></i>高</span><span><i class="priority-dot normal"></i>普通</span><span><i class="priority-dot low"></i>低</span><span>同级按等待时间排序</span></div>');
-    page.querySelector('thead tr').innerHTML = '<th>优先级</th><th>工单号</th><th>位置</th><th>类型</th><th>状态</th><th>负责人</th><th>创建时间</th><th>已等待/处理时长</th>';
+    page.querySelector('thead tr').innerHTML = type === 'repair' 
+      ? '<th>优先级</th><th>工单号</th><th>位置</th><th>类型</th><th>状态</th><th>负责人</th><th>创建时间</th><th>已等待/处理时长</th>'
+      : '<th>优先级</th><th>工单号</th><th>位置</th><th>状态</th><th>负责人</th><th>创建时间</th><th>已等待/处理时长</th>';
   });
 }
 
@@ -793,8 +795,10 @@ function renderTickets(type) {
   if(fs) rows=rows.filter(t=>t.status===fs); if(fc) rows=rows.filter(t=>t.cat===fc); if(fp) rows=rows.filter(t=>t.priority===fp);
   rows.sort((a,b) => sort==='newest' ? new Date(b.created)-new Date(a.created) : sort==='oldest' ? new Date(a.created)-new Date(b.created) : (PRIORITY_ORDER[b.priority]-PRIORITY_ORDER[a.priority] || new Date(a.created)-new Date(b.created)));
   $(`#count-${type}`).textContent=`共 ${rows.length} 张工单`;
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="8" class="empty">暂无符合条件的工单</td></tr>';return;}
-  tbody.innerHTML=rows.map(t=>{var h=durHours(t.created,t.finished||new Date().toISOString())||0;var urgedMark=t.urged&&t.urged.length?' <span style="color:#d97706;font-size:11px" title="已被催办'+t.urged.length+'次">⚡</span>':'';return `<tr class="ticket-row-${t.priority}" onclick="openDrawer('${t.id}')"><td>${priorityHtml(t.priority)}</td><td class="mono"><div>${esc(t.id)}</div>${recurrenceBadges(t)}</td><td>${esc(t.loc)}</td><td><span class="tag cat">${esc(t.cat)}</span></td><td><span class="tag ${STATUS_CLASS[t.status]}">${STATUS_LABEL[t.status]}</span>${urgedMark}</td><td>${t.worker?avatar(t.worker,staffColor(t.worker))+esc(t.worker):'<span style="color:#aaa">待指派</span>'}</td><td class="mono">${fmtTime(t.created)}</td><td><span class="wait-age ${t.status!=='done'&&h>ticketSla(t)?'overdue':''}">${t.status==='done'?'处理用时':'已等待'} ${ageLabel(t)}</span></td></tr>`}).join('');
+  var showCat = (type === 'repair');
+  var colspan = showCat ? 8 : 7;
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="'+colspan+'" class="empty">暂无符合条件的工单</td></tr>';return;}
+  tbody.innerHTML=rows.map(t=>{var h=durHours(t.created,t.finished||new Date().toISOString())||0;var urgedMark=t.urged&&t.urged.length?' <span style="color:#d97706;font-size:11px" title="已被催办'+t.urged.length+'次">⚡</span>':'';var catTd=showCat?'<td><span class="tag cat">'+esc(t.cat)+'</span></td>':'';return `<tr class="ticket-row-${t.priority}" onclick="openDrawer('${t.id}')"><td>${priorityHtml(t.priority)}</td><td class="mono"><div>${esc(t.id)}</div>${recurrenceBadges(t)}</td><td>${esc(t.loc)}</td>${catTd}<td><span class="tag ${STATUS_CLASS[t.status]}">${STATUS_LABEL[t.status]}</span>${urgedMark}</td><td>${t.worker?avatar(t.worker,staffColor(t.worker))+esc(t.worker):'<span style="color:#aaa">待指派</span>'}</td><td class="mono">${fmtTime(t.created)}</td><td><span class="wait-age ${t.status!=='done'&&h>ticketSla(t)?'overdue':''}">${t.status==='done'?'处理用时':'已等待'} ${ageLabel(t)}</span></td></tr>`}).join('');
 }
 
 function hint(text) { return `<div class="hint">ℹ️ ${esc(text)}</div>`; }
@@ -1233,25 +1237,49 @@ function rejectRegistration(id) {
 }
 
 function showReport(){
-  // 默认当月
-  var now=new Date();
-  var from=new Date(now.getFullYear(),now.getMonth(),1).toISOString().slice(0,10);
-  var to=now.toISOString().slice(0,10);
-  fetch(API_BASE+'/api/report?from='+from+'&to='+to+'&community_id='+encodeURIComponent(currentCommunity)).then(r=>r.json()).then(d=>{
-    if(!d.success){toast('生成报告失败');return;}
-    // 用抽屉展示报告
-    $('#drawer-title').textContent='📋 工单报告';
-    $('#drawer-sub').textContent=d.from+' ~ '+d.to;
-    $('#drawer-body').innerHTML=`
-      <div class="drawer-section">
-        <pre style="white-space:pre-wrap;font-size:13px;line-height:1.8;font-family:inherit">${d.report.replace(/</g,'&lt;')}</pre>
+  // 弹出选择面板
+  var now = new Date();
+  var todayStr = now.toISOString().slice(0, 10);
+  var weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10);
+  var monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+
+  $('#drawer-title').textContent = '📋 生成工单报告';
+  $('#drawer-sub').textContent = '选择报告周期';
+  $('#drawer-body').innerHTML = `
+    <div class="drawer-section">
+      <h4>选择报告周期</h4>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <button class="btn" onclick="generateReport('${todayStr}','${todayStr}')">📅 今日</button>
+        <button class="btn" onclick="generateReport('${weekAgo}','${todayStr}')">📅 本周（近7天）</button>
+        <button class="btn" onclick="generateReport('${monthStart}','${todayStr}')">📅 本月</button>
       </div>
+      <h4>自定义时间段</h4>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <input type="date" id="report-from" value="${monthStart}" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+        <span>至</span>
+        <input type="date" id="report-to" value="${todayStr}" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+        <button class="btn" onclick="generateReport($('#report-from').value,$('#report-to').value)">生成</button>
+      </div>
+    </div>`;
+  $('#drawerMask').classList.add('open'); $('#drawer').classList.add('open');
+}
+
+function generateReport(from, to) {
+  if (!from || !to) { toast('请选择日期范围'); return; }
+  fetch(API_BASE + '/api/report?from=' + from + '&to=' + to + '&community_id=' + encodeURIComponent(currentCommunity)).then(r => r.json()).then(d => {
+    if (!d.success) { toast('生成报告失败'); return; }
+    $('#drawer-title').textContent = '📋 工单报告';
+    $('#drawer-sub').textContent = d.from + ' ~ ' + d.to;
+    $('#drawer-body').innerHTML = `
       <div class="drawer-section">
-        <button class="btn" onclick="copyReport()">📋 一键复制报告</button>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button class="btn sm ghost" onclick="showReport()">← 重新选择周期</button>
+          <button class="btn sm" onclick="copyReport()">📋 复制报告</button>
+        </div>
+        <pre style="white-space:pre-wrap;font-size:13px;line-height:1.8;font-family:inherit">${d.report.replace(/</g, '&lt;')}</pre>
       </div>`;
-    $('#drawerMask').classList.add('open');$('#drawer').classList.add('open');
-    window._lastReport=d.report;
-  }).catch(()=>{toast('网络错误');});
+    window._lastReport = d.report;
+  }).catch(() => { toast('网络错误'); });
 }
 function copyReport(){
   if(!window._lastReport)return;
