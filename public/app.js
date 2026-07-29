@@ -1274,7 +1274,9 @@ function generateReport(from, to) {
       <div class="drawer-section">
         <div style="display:flex;gap:8px;margin-bottom:12px">
           <button class="btn sm ghost" onclick="showReport()">← 重新选择周期</button>
-          <button class="btn sm" onclick="copyReport()">📋 复制报告</button>
+          <button class="btn sm" onclick="copyReport()">📋 复制</button>
+          <button class="btn sm" onclick="downloadReportWord()">📄 下载Word</button>
+          <button class="btn sm" onclick="printReport()">🖨 下载PDF</button>
         </div>
         <pre style="white-space:pre-wrap;font-size:13px;line-height:1.8;font-family:inherit">${d.report.replace(/</g, '&lt;')}</pre>
       </div>`;
@@ -1284,9 +1286,38 @@ function generateReport(from, to) {
 function copyReport(){
   if(!window._lastReport)return;
   navigator.clipboard.writeText(window._lastReport).then(()=>toast('已复制到剪贴板')).catch(()=>{
-    // fallback
     var ta=document.createElement('textarea');ta.value=window._lastReport;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('已复制');
   });
+}
+
+function downloadReportWord() {
+  if (!window._lastReport) return;
+  var content = window._lastReport.replace(/\n/g, '<br>');
+  var html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>工单报告</title>
+<style>body{font-family:"Microsoft YaHei",sans-serif;font-size:14px;line-height:2;padding:40px;}</style>
+</head><body>${content}</body></html>`;
+  var blob = new Blob(['\ufeff' + html], { type: 'application/msword' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '工单报告_' + new Date().toISOString().slice(0, 10) + '.doc';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Word 文件已下载');
+}
+
+function printReport() {
+  if (!window._lastReport) return;
+  var win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>工单报告</title>
+<style>body{font-family:"Microsoft YaHei",sans-serif;font-size:14px;line-height:2;padding:40px;white-space:pre-wrap;}
+@media print{body{padding:20px;}}</style>
+</head><body>${window._lastReport.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</body></html>`);
+  win.document.close();
+  setTimeout(function() { win.print(); }, 300);
 }
 
 window.onload=async function(){
