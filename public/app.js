@@ -1489,7 +1489,7 @@ function renderTimelineDay(people, blocks, day, hStart, hEnd) {
 
     var avgH = workerAvgHours(p);
     var staffObj = state.staff.find(function(s) { return s.name === p; });
-    var dutyLabel = staffObj ? (staffObj.dutyStart || '08:00') + '~' + (staffObj.dutyEnd || '18:00') : '';
+    var dutyLabel = staffObj ? '🕐 值班 ' + (staffObj.dutyStart || '08:00') + ' ~ ' + (staffObj.dutyEnd || '18:00') : '';
     // 生成非值班时段灰色块
     var offDutyHtml = '';
     if (staffObj) {
@@ -1517,7 +1517,7 @@ function renderTimelineDay(people, blocks, day, hStart, hEnd) {
         }
       }
     }
-    return `<div class="vtl-col"><div class="vtl-col-head"><b>${esc(p)}</b><br><small>${dutyLabel}</small></div><div class="vtl-col-track">${offDutyHtml}${items}</div></div>`;
+    return `<div class="vtl-col"><div class="vtl-col-head"><b>${esc(p)}</b><br><span style="color:var(--primary);font-size:11px;font-weight:500">${dutyLabel}</span></div><div class="vtl-col-track">${offDutyHtml}${items}</div></div>`;
   }).join('');
 
   return `<div class="vtl-chart"><div class="vtl-time-col"><div class="vtl-col-head-placeholder"></div><div class="vtl-time-labels">${timeLabels}</div></div>${columns}</div>`;
