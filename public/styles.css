@@ -694,6 +694,8 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
   border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--card);
+  width: 100%;
+  min-width: fit-content;
 }
 
 /* 左侧时间刻度列 */
@@ -705,7 +707,7 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
   background: var(--canvas);
 }
 .vtl-col-head-placeholder {
-  height: 44px;
+  height: 56px;
   border-bottom: 1px solid var(--hairline);
 }
 .vtl-time-labels {
@@ -727,9 +729,9 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
 
 /* 师傅列 */
 .vtl-col {
-  flex: 1;
-  min-width: 120px;
-  max-width: 220px;
+  flex: 1 1 0;
+  min-width: 90px;
+  max-width: 240px;
   border-right: 1px solid var(--hairline-soft);
   display: flex;
   flex-direction: column;
@@ -737,8 +739,8 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
 .vtl-col:last-child { border-right: none; }
 
 .vtl-col-head {
-  height: 44px;
-  padding: 6px 8px;
+  height: 56px;
+  padding: 8px 6px;
   text-align: center;
   font-size: 12px;
   border-bottom: 1px solid var(--hairline);
@@ -787,11 +789,16 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
   display: flex;
   align-items: flex-start;
   z-index: 1;
+  /* 确保窄列时文字不溢出 */
+  word-break: break-all;
 }
 .vtl-block:hover {
-  transform: scale(1.02);
+  transform: scale(1.03);
   box-shadow: var(--shadow);
   z-index: 5;
+  /* hover时展开显示完整信息 */
+  min-width: 120px;
+  overflow: visible;
 }
 .vtl-block.urgent { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
 .vtl-block.high { background: #ffedd5; border-color: #fdba74; color: #9a3412; }
