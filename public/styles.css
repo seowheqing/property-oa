@@ -728,6 +728,7 @@ tbody tr:hover { background: #f8f7f6; box-shadow: inset 3px 0 0 var(--primary); 
 .vtl-col {
   flex: 1;
   min-width: 120px;
+  max-width: 220px;
   border-right: 1px solid var(--hairline-soft);
   display: flex;
   flex-direction: column;
