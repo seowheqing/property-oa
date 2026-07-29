@@ -279,17 +279,36 @@ function renderMyProfile() {
   var skillLabel = s ? (s.skill || '—') : '—';
   var phoneLabel = user.phone || (s ? s.phone : '—');
 
+  // 主管专属数据
+  var adminExtra = '';
+  if (isAdmin) {
+    var totalDispatched = state.tickets.filter(function(t) { return t.status !== 'wait'; }).length;
+    var staffCount = state.staff.filter(function(s) { return s.role === '维修工' || s.role === '物业管家'; }).length;
+    adminExtra = `
+      <div class="elem"><div class="k">累计派单</div><div class="v">${totalDispatched} 张</div></div>
+      <div class="elem"><div class="k">管理人员</div><div class="v">${staffCount} 人</div></div>
+    `;
+  }
+
+  // 师傅专属数据
+  var workerExtra = '';
+  if (!isAdmin) {
+    workerExtra = `
+      <div class="elem"><div class="k">技能</div><div class="v">${esc(skillLabel)}</div></div>
+      <div class="elem"><div class="k">累计完成工单</div><div class="v">${doneCount} 张</div></div>
+      <div class="elem"><div class="k">当前处理中</div><div class="v">${activeCount} 张</div></div>
+    `;
+  }
+
   el.innerHTML = `
     <div class="elements">
       <div class="elem"><div class="k">姓名</div><div class="v">${esc(myName)}</div></div>
       <div class="elem"><div class="k">角色</div><div class="v">${esc(roleLabel)}</div></div>
       <div class="elem"><div class="k">电话</div><div class="v">${esc(phoneLabel)}</div></div>
-      <div class="elem"><div class="k">技能</div><div class="v">${esc(skillLabel)}</div></div>
       <div class="elem"><div class="k">入职时间</div><div class="v">${esc(joinDate)}</div></div>
       <div class="elem"><div class="k">工龄</div><div class="v">${seniorityLabel}</div></div>
       <div class="elem"><div class="k">本月出勤</div><div class="v">${attendDays} 天</div></div>
-      <div class="elem"><div class="k">累计完成工单</div><div class="v">${doneCount} 张</div></div>
-      ${!isAdmin ? '<div class="elem"><div class="k">当前处理中</div><div class="v">' + activeCount + ' 张</div></div>' : ''}
+      ${isAdmin ? adminExtra : workerExtra}
     </div>
   `;
 }
